@@ -35,12 +35,12 @@ export default function CurrentStock() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-heading font-bold">Current Stock</h1>
+          <h1 className="text-2xl lg:text-3xl font-heading font-bold">Current Stock</h1>
           <p className="text-muted-foreground mt-1">
             Total Value: <span className="text-accent font-semibold">${totalValue.toLocaleString()}</span>
           </p>
         </div>
-        <Button variant="outline" className="border-border">
+        <Button variant="outline" size="sm" className="border-border">
           <Download className="w-4 h-4 mr-2" /> Export
         </Button>
       </div>
@@ -51,7 +51,7 @@ export default function CurrentStock() {
           <Input placeholder="Search wine..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 h-11 bg-card border-border" />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px] h-11 bg-card border-border">
+          <SelectTrigger className="w-full sm:w-[160px] h-11 bg-card border-border">
             <Filter className="w-4 h-4 mr-2" />
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -64,7 +64,53 @@ export default function CurrentStock() {
         </Select>
       </div>
 
-      <div className="wine-glass-effect rounded-xl overflow-hidden">
+      {/* Mobile Card View */}
+      <div className="lg:hidden space-y-3">
+        {filtered.map(w => {
+          const total = w.stockUnopened + w.stockOpened;
+          const value = total * w.price;
+          let statusCls = 'stock-healthy';
+          let statusLabel = '✓ In Stock';
+          if (total === 0) { statusCls = 'stock-out'; statusLabel = '✗ Out'; }
+          else if (total < w.minStockLevel) { statusCls = 'stock-low'; statusLabel = '⚠ Low'; }
+          return (
+            <div key={w.id} className="wine-glass-effect rounded-xl p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{w.name}</p>
+                  <p className="text-xs text-muted-foreground">{w.producer} • {w.vintage || 'NV'} • {w.volume}ml</p>
+                </div>
+                <span className={`wine-badge ${statusCls} ml-2 whitespace-nowrap`}>{statusLabel}</span>
+              </div>
+              <div className="grid grid-cols-4 gap-2 mt-3">
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground">Closed</p>
+                  <p className="font-semibold">{w.stockUnopened}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground">Open</p>
+                  <p className="font-semibold">{w.stockOpened}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground">Total</p>
+                  <p className="font-bold text-foreground">{total}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground">Value</p>
+                  <p className="font-semibold text-accent">${value.toLocaleString()}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+                <span>Par: {w.minStockLevel}</span>
+                <span>{w.location}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden lg:block wine-glass-effect rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

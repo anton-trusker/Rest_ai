@@ -2,9 +2,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import {
   LayoutDashboard, Wine, Package, Users, History, BarChart3,
-  LogOut, Menu, X, Settings
+  LogOut, Settings
 } from 'lucide-react';
-import { useState } from 'react';
 
 const adminNav = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
@@ -27,54 +26,38 @@ export default function AppSidebar() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   const nav = user?.role === 'admin' ? adminNav : staffNav;
 
-  const handleNav = (path: string) => {
-    navigate(path);
-    setMobileOpen(false);
-  };
-
   return (
     <>
-      {/* Mobile hamburger */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-card border border-border"
-      >
-        <Menu className="w-5 h-5 text-foreground" />
-      </button>
+      {/* Mobile top header bar */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-sidebar/95 backdrop-blur-md border-b border-sidebar-border px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg wine-gradient flex items-center justify-center">
+            <Wine className="w-4 h-4 text-primary-foreground" />
+          </div>
+          <h1 className="font-heading text-base font-semibold text-foreground">Cellar</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-accent">
+            {user?.name?.charAt(0)}
+          </div>
+        </div>
+      </div>
 
-      {/* Overlay */}
-      {mobileOpen && (
-        <div
-          className="lg:hidden fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-sidebar z-50 border-r border-sidebar-border flex flex-col transition-transform duration-300 lg:translate-x-0 ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
+      {/* Desktop Sidebar - hidden on mobile */}
+      <aside className="hidden lg:flex fixed top-0 left-0 h-full w-64 bg-sidebar z-50 border-r border-sidebar-border flex-col">
         {/* Header */}
         <div className="p-6 border-b border-sidebar-border">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl wine-gradient flex items-center justify-center">
-                <Wine className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="font-heading text-lg font-semibold text-foreground">Cellar</h1>
-                <p className="text-xs text-muted-foreground">Wine Inventory</p>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl wine-gradient flex items-center justify-center">
+              <Wine className="w-5 h-5 text-primary-foreground" />
             </div>
-            <button onClick={() => setMobileOpen(false)} className="lg:hidden text-muted-foreground">
-              <X className="w-5 h-5" />
-            </button>
+            <div>
+              <h1 className="font-heading text-lg font-semibold text-foreground">Cellar</h1>
+              <p className="text-xs text-muted-foreground">Wine Inventory</p>
+            </div>
           </div>
         </div>
 
@@ -83,7 +66,7 @@ export default function AppSidebar() {
           {nav.map((item) => (
             <button
               key={item.path}
-              onClick={() => handleNav(item.path)}
+              onClick={() => navigate(item.path)}
               className={`nav-item w-full ${location.pathname === item.path ? 'active' : ''}`}
             >
               <item.icon className="w-5 h-5" />

@@ -11,6 +11,11 @@ function MethodIcon({ method }: { method: string }) {
   return <Search className="w-4 h-4" />;
 }
 
+function MethodLabel({ method }: { method: string }) {
+  const labels: Record<string, string> = { manual: 'Search', barcode: 'Barcode', image_ai: 'Image AI' };
+  return <>{labels[method] || method}</>;
+}
+
 export default function InventoryHistory() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
@@ -32,7 +37,7 @@ export default function InventoryHistory() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-3xl font-heading font-bold">{isAdmin ? 'History & Audit' : 'My History'}</h1>
+        <h1 className="text-2xl lg:text-3xl font-heading font-bold">{isAdmin ? 'History & Audit' : 'My History'}</h1>
         <p className="text-muted-foreground mt-1">{movements.length} entries</p>
       </div>
 
@@ -42,7 +47,7 @@ export default function InventoryHistory() {
           <Input placeholder="Search wine..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-11 bg-card border-border" />
         </div>
         <Select value={methodFilter} onValueChange={setMethodFilter}>
-          <SelectTrigger className="w-[180px] h-11 bg-card border-border">
+          <SelectTrigger className="w-full sm:w-[180px] h-11 bg-card border-border">
             <SelectValue placeholder="Method" />
           </SelectTrigger>
           <SelectContent>
@@ -54,7 +59,35 @@ export default function InventoryHistory() {
         </Select>
       </div>
 
-      <div className="wine-glass-effect rounded-xl overflow-hidden">
+      {/* Mobile Card View */}
+      <div className="lg:hidden space-y-3">
+        {movements.map(m => (
+          <div key={m.id} className="wine-glass-effect rounded-xl p-4">
+            <div className="flex items-start justify-between mb-1">
+              <p className="font-medium text-sm truncate flex-1">{m.wineName}</p>
+              <span className="wine-badge bg-secondary text-secondary-foreground ml-2">
+                <MethodIcon method={m.method} />
+                <span className="ml-1"><MethodLabel method={m.method} /></span>
+              </span>
+            </div>
+            {isAdmin && <p className="text-xs text-accent">{m.userName}</p>}
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex items-center gap-3 text-xs">
+                <span><span className="text-muted-foreground">C:</span> {m.unopened}</span>
+                <span><span className="text-muted-foreground">O:</span> {m.opened}</span>
+                <span className="font-semibold">Total: {m.unopened + m.opened}</span>
+              </div>
+              {m.confidence && <span className="text-xs text-accent">{m.confidence}%</span>}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+              <Clock className="w-3 h-3" /> {formatDate(m.timestamp)}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden lg:block wine-glass-effect rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -80,7 +113,7 @@ export default function InventoryHistory() {
                   <td className="p-4">
                     <span className="wine-badge bg-secondary text-secondary-foreground">
                       <MethodIcon method={m.method} />
-                      <span className="ml-1 capitalize">{m.method.replace('_', ' ')}</span>
+                      <span className="ml-1"><MethodLabel method={m.method} /></span>
                     </span>
                   </td>
                   <td className="p-4 text-center">{m.unopened}</td>
