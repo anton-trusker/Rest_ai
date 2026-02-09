@@ -2,10 +2,25 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mockWines, Wine } from '@/data/mockWines';
 import { useAuthStore } from '@/stores/authStore';
-import { Search, Plus, Filter, LayoutGrid, Table2, Wine as WineIcon, ImageOff, SlidersHorizontal } from 'lucide-react';
+import { useColumnStore } from '@/stores/columnStore';
+import { Search, Plus, SlidersHorizontal, LayoutGrid, Table2, Wine as WineIcon, ImageOff, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import ColumnManager, { ColumnDef } from '@/components/ColumnManager';
+
+const CATALOG_COLUMNS: ColumnDef[] = [
+  { key: 'wine', label: 'Wine' },
+  { key: 'producer', label: 'Producer' },
+  { key: 'vintage', label: 'Vintage' },
+  { key: 'type', label: 'Type' },
+  { key: 'volume', label: 'Volume' },
+  { key: 'country', label: 'Country' },
+  { key: 'region', label: 'Region' },
+  { key: 'stock', label: 'Stock' },
+  { key: 'status', label: 'Status' },
+  { key: 'price', label: 'Price' },
+];
 
 function StockBadge({ wine }: { wine: Wine }) {
   const total = wine.stockUnopened + wine.stockOpened;
@@ -16,8 +31,8 @@ function StockBadge({ wine }: { wine: Wine }) {
 
 function TypeBadge({ type }: { type: string }) {
   const colors: Record<string, string> = {
-    Red: 'bg-wine-red/20 text-wine-red-light',
-    White: 'bg-wine-gold/20 text-wine-gold',
+    Red: 'bg-primary/20 text-primary',
+    White: 'bg-accent/20 text-accent',
     Rosé: 'bg-pink-500/20 text-pink-400',
     Sparkling: 'bg-sky-500/20 text-sky-400',
     Fortified: 'bg-amber-600/20 text-amber-500',
@@ -28,16 +43,16 @@ function TypeBadge({ type }: { type: string }) {
 
 function WineCard({ wine, onClick, hideStock }: { wine: Wine; onClick: () => void; hideStock?: boolean }) {
   return (
-    <div onClick={onClick} className="wine-glass-effect rounded-xl overflow-hidden group transition-all duration-300 hover:border-wine-gold/30 cursor-pointer">
-      <div className="h-40 bg-secondary flex items-center justify-center relative overflow-hidden">
+    <div onClick={onClick} className="wine-glass-effect rounded-xl overflow-hidden group transition-all duration-300 hover:border-accent/30 hover:shadow-lg hover:shadow-primary/5 cursor-pointer">
+      <div className="h-36 bg-gradient-to-b from-secondary to-card flex items-center justify-center relative overflow-hidden">
         {wine.hasImage ? (
-          <div className="w-full h-full bg-gradient-to-b from-wine-burgundy/40 to-card flex items-center justify-center">
-            <WineIcon className="w-12 h-12 text-wine-gold/40" />
+          <div className="w-full h-full bg-gradient-to-b from-wine-burgundy/30 to-card flex items-center justify-center">
+            <WineIcon className="w-10 h-10 text-accent/30 group-hover:text-accent/50 transition-colors" />
           </div>
         ) : (
           <div className="flex flex-col items-center text-muted-foreground">
-            <ImageOff className="w-8 h-8 mb-1" />
-            <span className="text-xs">No Image</span>
+            <ImageOff className="w-7 h-7 mb-1" />
+            <span className="text-[10px]">No Image</span>
           </div>
         )}
         <div className="absolute top-2 right-2">
@@ -45,20 +60,18 @@ function WineCard({ wine, onClick, hideStock }: { wine: Wine; onClick: () => voi
         </div>
       </div>
       <div className="p-4">
-        <h3 className="font-heading font-semibold text-base truncate">{wine.name}</h3>
-        <p className="text-sm text-muted-foreground truncate">{wine.producer}</p>
-        <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+        <h3 className="font-heading font-semibold text-sm truncate">{wine.name}</h3>
+        <p className="text-xs text-muted-foreground truncate mt-0.5">{wine.producer}</p>
+        <div className="flex items-center gap-1.5 mt-2 text-[11px] text-muted-foreground">
           <span>{wine.vintage || 'NV'}</span>
-          <span>•</span>
+          <span className="text-border">•</span>
           <span>{wine.volume}ml</span>
-          <span>•</span>
+          <span className="text-border">•</span>
           <span>{wine.region}</span>
         </div>
         {!hideStock && (
-          <div className="flex items-center justify-between mt-3">
-            <div>
-              <span className="text-xs text-muted-foreground">{wine.stockUnopened}U + {wine.stockOpened}O</span>
-            </div>
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
+            <span className="text-xs text-muted-foreground">{wine.stockUnopened}U + {wine.stockOpened}O</span>
             <StockBadge wine={wine} />
           </div>
         )}
@@ -71,23 +84,29 @@ type SortOption = 'name-asc' | 'name-desc' | 'producer' | 'vintage' | 'stock' | 
 
 export default function WineCatalog() {
   const { user } = useAuthStore();
+  const { catalogColumns, setCatalogColumns } = useColumnStore();
   const navigate = useNavigate();
   const isAdmin = user?.role === 'admin';
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [countryFilter, setCountryFilter] = useState('all');
+  const [regionFilter, setRegionFilter] = useState('all');
   const [stockFilter, setStockFilter] = useState('all');
   const [sortBy, setSortBy] = useState<SortOption>('name-asc');
   const [view, setView] = useState<'cards' | 'table'>('cards');
   const [showFilters, setShowFilters] = useState(false);
 
   const countries = useMemo(() => [...new Set(mockWines.filter(w => w.isActive).map(w => w.country))].sort(), []);
+  const regions = useMemo(() => [...new Set(mockWines.filter(w => w.isActive).map(w => w.region))].sort(), []);
+
+  const activeFilterCount = [typeFilter, countryFilter, regionFilter, stockFilter].filter(f => f !== 'all').length;
 
   const filtered = useMemo(() => {
     let wines = mockWines.filter(w => {
       if (!w.isActive) return false;
       if (typeFilter !== 'all' && w.type !== typeFilter) return false;
       if (countryFilter !== 'all' && w.country !== countryFilter) return false;
+      if (regionFilter !== 'all' && w.region !== regionFilter) return false;
       if (stockFilter !== 'all') {
         const total = w.stockUnopened + w.stockOpened;
         if (stockFilter === 'in-stock' && (total === 0 || total < w.minStockLevel)) return false;
@@ -104,7 +123,6 @@ export default function WineCatalog() {
       return true;
     });
 
-    // Sort
     wines.sort((a, b) => {
       switch (sortBy) {
         case 'name-asc': return a.name.localeCompare(b.name);
@@ -118,20 +136,20 @@ export default function WineCatalog() {
     });
 
     return wines;
-  }, [search, typeFilter, countryFilter, stockFilter, sortBy]);
+  }, [search, typeFilter, countryFilter, regionFilter, stockFilter, sortBy]);
 
-  // Hide stock from staff
   const hideStock = !isAdmin;
+  const v = (key: string) => catalogColumns.includes(key);
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-heading font-bold">Wine Catalog</h1>
+          <h1 className="text-2xl lg:text-3xl font-heading font-bold">Wine Catalog</h1>
           <p className="text-muted-foreground mt-1">{filtered.length} wines</p>
         </div>
         {isAdmin && (
-          <Button className="wine-gradient text-primary-foreground hover:opacity-90" onClick={() => navigate('/catalog/new')}>
+          <Button className="wine-gradient text-primary-foreground hover:opacity-90 shadow-lg shadow-primary/20" onClick={() => navigate('/catalog/new')}>
             <Plus className="w-4 h-4 mr-2" />
             Add Wine
           </Button>
@@ -152,7 +170,6 @@ export default function WineCatalog() {
           </div>
           <Select value={typeFilter} onValueChange={setTypeFilter}>
             <SelectTrigger className="w-full sm:w-[140px] h-11 bg-card border-border">
-              <Filter className="w-4 h-4 mr-2" />
               <SelectValue placeholder="Type" />
             </SelectTrigger>
             <SelectContent>
@@ -163,54 +180,78 @@ export default function WineCatalog() {
               <SelectItem value="Sparkling">Sparkling</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="icon" className="h-11 w-11 border-border" onClick={() => setShowFilters(!showFilters)}>
+          <Button
+            variant="outline"
+            className={`h-11 border-border gap-2 ${showFilters ? 'bg-primary/10 text-primary border-primary/30' : ''}`}
+            onClick={() => setShowFilters(!showFilters)}
+          >
             <SlidersHorizontal className="w-4 h-4" />
+            <span className="hidden sm:inline">Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
           </Button>
+          {isAdmin && view === 'table' && <ColumnManager columns={CATALOG_COLUMNS} visibleColumns={catalogColumns} onChange={setCatalogColumns} />}
           <div className="flex border border-border rounded-lg overflow-hidden">
-            <button onClick={() => setView('cards')} className={`p-2.5 ${view === 'cards' ? 'bg-primary/15 text-primary' : 'text-muted-foreground'}`}>
+            <button onClick={() => setView('cards')} className={`p-2.5 transition-colors ${view === 'cards' ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
               <LayoutGrid className="w-5 h-5" />
             </button>
-            <button onClick={() => setView('table')} className={`p-2.5 ${view === 'table' ? 'bg-primary/15 text-primary' : 'text-muted-foreground'}`}>
+            <button onClick={() => setView('table')} className={`p-2.5 transition-colors ${view === 'table' ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
               <Table2 className="w-5 h-5" />
             </button>
           </div>
         </div>
 
         {showFilters && (
-          <div className="flex flex-wrap gap-3 animate-fade-in">
-            <Select value={countryFilter} onValueChange={setCountryFilter}>
-              <SelectTrigger className="w-[160px] h-10 bg-card border-border text-sm">
-                <SelectValue placeholder="Country" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Countries</SelectItem>
-                {countries.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={stockFilter} onValueChange={setStockFilter}>
-              <SelectTrigger className="w-[160px] h-10 bg-card border-border text-sm">
-                <SelectValue placeholder="Stock" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Stock</SelectItem>
-                <SelectItem value="in-stock">In Stock</SelectItem>
-                <SelectItem value="low">Low Stock</SelectItem>
-                <SelectItem value="out">Out of Stock</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={sortBy} onValueChange={v => setSortBy(v as SortOption)}>
-              <SelectTrigger className="w-[160px] h-10 bg-card border-border text-sm">
-                <SelectValue placeholder="Sort" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name-asc">Name A-Z</SelectItem>
-                <SelectItem value="name-desc">Name Z-A</SelectItem>
-                <SelectItem value="producer">Producer</SelectItem>
-                <SelectItem value="vintage">Vintage (newest)</SelectItem>
-                <SelectItem value="stock">Stock Level</SelectItem>
-                <SelectItem value="updated">Last Updated</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="wine-glass-effect rounded-xl p-4 animate-fade-in">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Advanced Filters</p>
+              {activeFilterCount > 0 && (
+                <Button variant="ghost" size="sm" className="text-xs h-7 text-muted-foreground" onClick={() => { setCountryFilter('all'); setRegionFilter('all'); setStockFilter('all'); setTypeFilter('all'); }}>
+                  <X className="w-3 h-3 mr-1" /> Clear all
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Select value={countryFilter} onValueChange={setCountryFilter}>
+                <SelectTrigger className="w-[160px] h-9 bg-card border-border text-sm"><SelectValue placeholder="Country" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Countries</SelectItem>
+                  {countries.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={regionFilter} onValueChange={setRegionFilter}>
+                <SelectTrigger className="w-[160px] h-9 bg-card border-border text-sm"><SelectValue placeholder="Region" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Regions</SelectItem>
+                  {regions.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {!hideStock && (
+                <Select value={stockFilter} onValueChange={setStockFilter}>
+                  <SelectTrigger className="w-[160px] h-9 bg-card border-border text-sm"><SelectValue placeholder="Stock" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Stock</SelectItem>
+                    <SelectItem value="in-stock">In Stock</SelectItem>
+                    <SelectItem value="low">Low Stock</SelectItem>
+                    <SelectItem value="out">Out of Stock</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+              <Select value={sortBy} onValueChange={vl => setSortBy(vl as SortOption)}>
+                <SelectTrigger className="w-[160px] h-9 bg-card border-border text-sm"><SelectValue placeholder="Sort" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name-asc">Name A-Z</SelectItem>
+                  <SelectItem value="name-desc">Name Z-A</SelectItem>
+                  <SelectItem value="producer">Producer</SelectItem>
+                  <SelectItem value="vintage">Vintage (newest)</SelectItem>
+                  <SelectItem value="stock">Stock Level</SelectItem>
+                  <SelectItem value="updated">Last Updated</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         )}
       </div>
@@ -231,32 +272,43 @@ export default function WineCatalog() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground">
-                  <th className="text-left p-4 font-medium">Wine</th>
-                  <th className="text-left p-4 font-medium">Producer</th>
-                  <th className="text-left p-4 font-medium">Vintage</th>
-                  <th className="text-left p-4 font-medium">Type</th>
-                  <th className="text-left p-4 font-medium">Volume</th>
-                  {!hideStock && <th className="text-left p-4 font-medium">Stock</th>}
-                  {!hideStock && <th className="text-left p-4 font-medium">Status</th>}
-                  {isAdmin && <th className="text-left p-4 font-medium">Price</th>}
+                  {v('wine') && <th className="text-left p-4 font-medium">Wine</th>}
+                  {v('producer') && <th className="text-left p-4 font-medium">Producer</th>}
+                  {v('vintage') && <th className="text-left p-4 font-medium">Vintage</th>}
+                  {v('type') && <th className="text-left p-4 font-medium">Type</th>}
+                  {v('volume') && <th className="text-left p-4 font-medium">Volume</th>}
+                  {v('country') && <th className="text-left p-4 font-medium">Country</th>}
+                  {v('region') && <th className="text-left p-4 font-medium">Region</th>}
+                  {!hideStock && v('stock') && <th className="text-left p-4 font-medium">Stock</th>}
+                  {!hideStock && v('status') && <th className="text-left p-4 font-medium">Status</th>}
+                  {isAdmin && v('price') && <th className="text-left p-4 font-medium">Price</th>}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(wine => (
                   <tr key={wine.id} onClick={() => navigate(`/catalog/${wine.id}`)} className="border-b border-border/50 hover:bg-wine-surface-hover transition-colors cursor-pointer">
-                    <td className="p-4 font-medium">{wine.name}</td>
-                    <td className="p-4 text-muted-foreground">{wine.producer}</td>
-                    <td className="p-4">{wine.vintage || 'NV'}</td>
-                    <td className="p-4"><TypeBadge type={wine.type} /></td>
-                    <td className="p-4 text-muted-foreground">{wine.volume}ml</td>
-                    {!hideStock && <td className="p-4">{wine.stockUnopened}U + {wine.stockOpened}O</td>}
-                    {!hideStock && <td className="p-4"><StockBadge wine={wine} /></td>}
-                    {isAdmin && <td className="p-4 text-accent">${wine.price}</td>}
+                    {v('wine') && <td className="p-4 font-medium">{wine.name}</td>}
+                    {v('producer') && <td className="p-4 text-muted-foreground">{wine.producer}</td>}
+                    {v('vintage') && <td className="p-4">{wine.vintage || 'NV'}</td>}
+                    {v('type') && <td className="p-4"><TypeBadge type={wine.type} /></td>}
+                    {v('volume') && <td className="p-4 text-muted-foreground">{wine.volume}ml</td>}
+                    {v('country') && <td className="p-4 text-muted-foreground">{wine.country}</td>}
+                    {v('region') && <td className="p-4 text-muted-foreground">{wine.region}</td>}
+                    {!hideStock && v('stock') && <td className="p-4">{wine.stockUnopened}U + {wine.stockOpened}O</td>}
+                    {!hideStock && v('status') && <td className="p-4"><StockBadge wine={wine} /></td>}
+                    {isAdmin && v('price') && <td className="p-4 text-accent">${wine.price}</td>}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {filtered.length === 0 && (
+        <div className="text-center py-16 text-muted-foreground">
+          <WineIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
+          <p>No wines match your filters</p>
         </div>
       )}
     </div>

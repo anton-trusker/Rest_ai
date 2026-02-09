@@ -1,27 +1,64 @@
 import { useState, useMemo } from 'react';
 import { mockWines } from '@/data/mockWines';
 import { useAuthStore } from '@/stores/authStore';
+import { useColumnStore } from '@/stores/columnStore';
 import { Navigate } from 'react-router-dom';
-import { Search, Download, Filter, SlidersHorizontal } from 'lucide-react';
+import { Search, Download, SlidersHorizontal, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
 import { toast } from 'sonner';
+import ColumnManager, { ColumnDef } from '@/components/ColumnManager';
 
-type SortOption = 'name' | 'stock' | 'value' | 'location';
+const STOCK_COLUMNS: ColumnDef[] = [
+  { key: 'wine', label: 'Wine' },
+  { key: 'vintage', label: 'Vintage' },
+  { key: 'type', label: 'Type' },
+  { key: 'size', label: 'Size' },
+  { key: 'region', label: 'Region' },
+  { key: 'country', label: 'Country' },
+  { key: 'closed', label: 'Closed' },
+  { key: 'open', label: 'Open' },
+  { key: 'total', label: 'Total' },
+  { key: 'par', label: 'Par Level' },
+  { key: 'status', label: 'Status' },
+  { key: 'value', label: 'Value' },
+  { key: 'location', label: 'Location' },
+];
+
+type SortOption = 'name' | 'stock' | 'value' | 'location' | 'vintage' | 'type';
 
 export default function CurrentStock() {
   const { user } = useAuthStore();
+  const { stockColumns, setStockColumns } = useColumnStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [locationFilter, setLocationFilter] = useState('all');
+  const [regionFilter, setRegionFilter] = useState('all');
+  const [countryFilter, setCountryFilter] = useState('all');
   const [sortBy, setSortBy] = useState<SortOption>('name');
   const [showFilters, setShowFilters] = useState(false);
+  const [stockRange, setStockRange] = useState<[number, number]>([0, 100]);
 
   const totalValue = mockWines.reduce((s, w) => s + (w.stockUnopened + w.stockOpened) * w.price, 0);
+  const totalBottles = mockWines.reduce((s, w) => s + w.stockUnopened + w.stockOpened, 0);
 
   const locations = useMemo(() => [...new Set(mockWines.filter(w => w.isActive && w.cellarSection).map(w => w.cellarSection!))].sort(), []);
+  const regions = useMemo(() => [...new Set(mockWines.filter(w => w.isActive).map(w => w.region))].sort(), []);
+  const countries = useMemo(() => [...new Set(mockWines.filter(w => w.isActive).map(w => w.country))].sort(), []);
+
+  const activeFilterCount = [statusFilter, typeFilter, locationFilter, regionFilter, countryFilter].filter(f => f !== 'all').length + (stockRange[0] > 0 || stockRange[1] < 100 ? 1 : 0);
+
+  const clearFilters = () => {
+    setStatusFilter('all');
+    setTypeFilter('all');
+    setLocationFilter('all');
+    setRegionFilter('all');
+    setCountryFilter('all');
+    setStockRange([0, 100]);
+  };
 
   const filtered = useMemo(() => {
     let wines = mockWines.filter(w => {
@@ -32,6 +69,9 @@ export default function CurrentStock() {
       if (statusFilter === 'out' && total > 0) return false;
       if (typeFilter !== 'all' && w.type !== typeFilter) return false;
       if (locationFilter !== 'all' && w.cellarSection !== locationFilter) return false;
+      if (regionFilter !== 'all' && w.region !== regionFilter) return false;
+      if (countryFilter !== 'all' && w.country !== countryFilter) return false;
+      if (total < stockRange[0] || total > stockRange[1]) return false;
       if (search) {
         const q = search.toLowerCase();
         return w.name.toLowerCase().includes(q) || w.producer.toLowerCase().includes(q);
@@ -45,44 +85,53 @@ export default function CurrentStock() {
         case 'stock': return (b.stockUnopened + b.stockOpened) - (a.stockUnopened + a.stockOpened);
         case 'value': return ((b.stockUnopened + b.stockOpened) * b.price) - ((a.stockUnopened + a.stockOpened) * a.price);
         case 'location': return (a.location || '').localeCompare(b.location || '');
+        case 'vintage': return (b.vintage || 0) - (a.vintage || 0);
+        case 'type': return a.type.localeCompare(b.type);
         default: return 0;
       }
     });
 
     return wines;
-  }, [search, statusFilter, typeFilter, locationFilter, sortBy]);
+  }, [search, statusFilter, typeFilter, locationFilter, regionFilter, countryFilter, sortBy, stockRange]);
 
   if (user?.role !== 'admin') return <Navigate to="/dashboard" replace />;
 
+  const v = (key: string) => stockColumns.includes(key);
+
   const getRowBg = (total: number, min: number) => {
-    if (total === 0) return 'bg-destructive/5';
-    if (total < min) return 'bg-[hsl(var(--wine-warning)/0.05)]';
-    return '';
+    if (total === 0) return 'bg-destructive/5 border-l-2 border-l-destructive/40';
+    if (total < min) return 'bg-[hsl(var(--wine-warning)/0.04)] border-l-2 border-l-wine-warning/40';
+    return 'border-l-2 border-l-transparent';
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      {/* Header with summary stats */}
+      <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl lg:text-3xl font-heading font-bold">Current Stock</h1>
-          <p className="text-muted-foreground mt-1">
-            Total Value: <span className="text-accent font-semibold">${totalValue.toLocaleString()}</span>
-          </p>
+          <div className="flex items-center gap-4 mt-2 text-sm">
+            <span className="text-muted-foreground">{filtered.length} wines</span>
+            <span className="text-muted-foreground">•</span>
+            <span className="text-muted-foreground">{totalBottles} bottles</span>
+            <span className="text-muted-foreground">•</span>
+            <span className="text-accent font-semibold">${totalValue.toLocaleString()}</span>
+          </div>
         </div>
         <Button variant="outline" size="sm" className="border-border" onClick={() => toast.info('Export coming soon')}>
           <Download className="w-4 h-4 mr-2" /> Export
         </Button>
       </div>
 
+      {/* Filters row */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Search wine..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 h-11 bg-card border-border" />
+            <Input placeholder="Search wine or producer..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 h-11 bg-card border-border" />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-[160px] h-11 bg-card border-border">
-              <Filter className="w-4 h-4 mr-2" />
+            <SelectTrigger className="w-full sm:w-[150px] h-11 bg-card border-border">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -92,36 +141,84 @@ export default function CurrentStock() {
               <SelectItem value="out">Out of Stock</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="icon" className="h-11 w-11 border-border" onClick={() => setShowFilters(!showFilters)}>
+          <Button
+            variant="outline"
+            className={`h-11 border-border gap-2 ${showFilters ? 'bg-primary/10 text-primary border-primary/30' : ''}`}
+            onClick={() => setShowFilters(!showFilters)}
+          >
             <SlidersHorizontal className="w-4 h-4" />
+            <span className="hidden sm:inline">Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
           </Button>
+          <ColumnManager columns={STOCK_COLUMNS} visibleColumns={stockColumns} onChange={setStockColumns} />
         </div>
 
         {showFilters && (
-          <div className="flex flex-wrap gap-3 animate-fade-in">
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[140px] h-10 bg-card border-border text-sm"><SelectValue placeholder="Type" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {['Red', 'White', 'Rosé', 'Sparkling'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={locationFilter} onValueChange={setLocationFilter}>
-              <SelectTrigger className="w-[160px] h-10 bg-card border-border text-sm"><SelectValue placeholder="Location" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Locations</SelectItem>
-                {locations.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={sortBy} onValueChange={v => setSortBy(v as SortOption)}>
-              <SelectTrigger className="w-[140px] h-10 bg-card border-border text-sm"><SelectValue placeholder="Sort" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name">Name</SelectItem>
-                <SelectItem value="stock">Stock Level</SelectItem>
-                <SelectItem value="value">Value</SelectItem>
-                <SelectItem value="location">Location</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="wine-glass-effect rounded-xl p-4 animate-fade-in">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Advanced Filters</p>
+              {activeFilterCount > 0 && (
+                <Button variant="ghost" size="sm" className="text-xs h-7 text-muted-foreground" onClick={clearFilters}>
+                  <X className="w-3 h-3 mr-1" /> Clear all
+                </Button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="h-9 bg-card border-border text-sm"><SelectValue placeholder="Type" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {['Red', 'White', 'Rosé', 'Sparkling'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={countryFilter} onValueChange={setCountryFilter}>
+                <SelectTrigger className="h-9 bg-card border-border text-sm"><SelectValue placeholder="Country" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Countries</SelectItem>
+                  {countries.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={regionFilter} onValueChange={setRegionFilter}>
+                <SelectTrigger className="h-9 bg-card border-border text-sm"><SelectValue placeholder="Region" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Regions</SelectItem>
+                  {regions.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={locationFilter} onValueChange={setLocationFilter}>
+                <SelectTrigger className="h-9 bg-card border-border text-sm"><SelectValue placeholder="Location" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Locations</SelectItem>
+                  {locations.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={sortBy} onValueChange={v => setSortBy(v as SortOption)}>
+                <SelectTrigger className="h-9 bg-card border-border text-sm"><SelectValue placeholder="Sort" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Name</SelectItem>
+                  <SelectItem value="stock">Stock Level</SelectItem>
+                  <SelectItem value="value">Value</SelectItem>
+                  <SelectItem value="location">Location</SelectItem>
+                  <SelectItem value="vintage">Vintage</SelectItem>
+                  <SelectItem value="type">Type</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="mt-4">
+              <p className="text-xs text-muted-foreground mb-2">Stock range: {stockRange[0]} – {stockRange[1]}+</p>
+              <Slider
+                value={stockRange}
+                onValueChange={(v) => setStockRange(v as [number, number])}
+                max={100}
+                min={0}
+                step={1}
+                className="w-full max-w-xs"
+              />
+            </div>
           </div>
         )}
       </div>
@@ -141,6 +238,7 @@ export default function CurrentStock() {
                 <div className="flex-1 min-w-0">
                   <p className="font-medium truncate">{w.name}</p>
                   <p className="text-xs text-muted-foreground">{w.producer} • {w.vintage || 'NV'} • {w.volume}ml</p>
+                  <p className="text-xs text-muted-foreground">{w.region}, {w.country}</p>
                 </div>
                 <span className={`wine-badge ${statusCls} ml-2 whitespace-nowrap`}>{statusLabel}</span>
               </div>
@@ -165,16 +263,19 @@ export default function CurrentStock() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-muted-foreground">
-                <th className="text-left p-4 font-medium">Wine</th>
-                <th className="text-left p-4 font-medium">Vintage</th>
-                <th className="text-left p-4 font-medium">Size</th>
-                <th className="text-center p-4 font-medium">Closed</th>
-                <th className="text-center p-4 font-medium">Open</th>
-                <th className="text-center p-4 font-medium">Total</th>
-                <th className="text-center p-4 font-medium">Par</th>
-                <th className="text-left p-4 font-medium">Status</th>
-                <th className="text-right p-4 font-medium">Value</th>
-                <th className="text-left p-4 font-medium">Location</th>
+                {v('wine') && <th className="text-left p-4 font-medium">Wine</th>}
+                {v('vintage') && <th className="text-left p-4 font-medium">Vintage</th>}
+                {v('type') && <th className="text-left p-4 font-medium">Type</th>}
+                {v('size') && <th className="text-left p-4 font-medium">Size</th>}
+                {v('region') && <th className="text-left p-4 font-medium">Region</th>}
+                {v('country') && <th className="text-left p-4 font-medium">Country</th>}
+                {v('closed') && <th className="text-center p-4 font-medium">Closed</th>}
+                {v('open') && <th className="text-center p-4 font-medium">Open</th>}
+                {v('total') && <th className="text-center p-4 font-medium">Total</th>}
+                {v('par') && <th className="text-center p-4 font-medium">Par</th>}
+                {v('status') && <th className="text-left p-4 font-medium">Status</th>}
+                {v('value') && <th className="text-right p-4 font-medium">Value</th>}
+                {v('location') && <th className="text-left p-4 font-medium">Location</th>}
               </tr>
             </thead>
             <tbody>
@@ -187,16 +288,19 @@ export default function CurrentStock() {
                 else if (total < w.minStockLevel) { statusCls = 'stock-low'; statusLabel = '⚠ Low'; }
                 return (
                   <tr key={w.id} className={`border-b border-border/50 hover:bg-wine-surface-hover transition-colors ${getRowBg(total, w.minStockLevel)}`}>
-                    <td className="p-4"><p className="font-medium">{w.name}</p><p className="text-xs text-muted-foreground">{w.producer}</p></td>
-                    <td className="p-4">{w.vintage || 'NV'}</td>
-                    <td className="p-4 text-muted-foreground">{w.volume}ml</td>
-                    <td className="p-4 text-center font-medium">{w.stockUnopened}</td>
-                    <td className="p-4 text-center text-muted-foreground">{w.stockOpened}</td>
-                    <td className="p-4 text-center font-semibold">{total}</td>
-                    <td className="p-4 text-center text-muted-foreground">{w.minStockLevel}</td>
-                    <td className="p-4"><span className={`wine-badge ${statusCls}`}>{statusLabel}</span></td>
-                    <td className="p-4 text-right text-accent">${value.toLocaleString()}</td>
-                    <td className="p-4 text-xs text-muted-foreground">{w.location}</td>
+                    {v('wine') && <td className="p-4"><p className="font-medium">{w.name}</p><p className="text-xs text-muted-foreground">{w.producer}</p></td>}
+                    {v('vintage') && <td className="p-4">{w.vintage || 'NV'}</td>}
+                    {v('type') && <td className="p-4"><span className="wine-badge bg-secondary text-secondary-foreground">{w.type}</span></td>}
+                    {v('size') && <td className="p-4 text-muted-foreground">{w.volume}ml</td>}
+                    {v('region') && <td className="p-4 text-muted-foreground">{w.region}</td>}
+                    {v('country') && <td className="p-4 text-muted-foreground">{w.country}</td>}
+                    {v('closed') && <td className="p-4 text-center font-medium">{w.stockUnopened}</td>}
+                    {v('open') && <td className="p-4 text-center text-muted-foreground">{w.stockOpened}</td>}
+                    {v('total') && <td className="p-4 text-center font-semibold">{total}</td>}
+                    {v('par') && <td className="p-4 text-center text-muted-foreground">{w.minStockLevel}</td>}
+                    {v('status') && <td className="p-4"><span className={`wine-badge ${statusCls}`}>{statusLabel}</span></td>}
+                    {v('value') && <td className="p-4 text-right text-accent">${value.toLocaleString()}</td>}
+                    {v('location') && <td className="p-4 text-xs text-muted-foreground">{w.location}</td>}
                   </tr>
                 );
               })}
@@ -204,6 +308,13 @@ export default function CurrentStock() {
           </table>
         </div>
       </div>
+
+      {filtered.length === 0 && (
+        <div className="text-center py-16 text-muted-foreground">
+          <p className="text-lg">No wines match your filters</p>
+          <Button variant="ghost" className="mt-2 text-accent" onClick={clearFilters}>Clear all filters</Button>
+        </div>
+      )}
     </div>
   );
 }
