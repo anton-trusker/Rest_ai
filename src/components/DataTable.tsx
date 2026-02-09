@@ -104,13 +104,15 @@ export default function DataTable<T>({
   const headerPad = compact ? 'px-2 py-2' : 'p-4';
   const textSize = compact ? 'text-xs' : 'text-sm';
 
+  const totalWidth = orderedCols.reduce((sum, col) => sum + (columnWidths[col.key] || col.minWidth || (compact ? 100 : 150)), 0);
+
   return (
-    <div className="overflow-x-auto -mx-1">
-      <table className={cn('w-full', textSize)} style={{ tableLayout: 'fixed' }}>
+    <div className="overflow-x-auto overscroll-x-contain -webkit-overflow-scrolling-touch">
+      <table className={cn('w-full', textSize)} style={{ tableLayout: 'fixed', minWidth: Math.max(totalWidth, 600) }}>
         <thead className="sticky top-0 z-10 bg-card">
           <tr className="border-b border-border text-muted-foreground">
-            {orderedCols.map(col => {
-              const w = columnWidths[col.key];
+            {orderedCols.map((col, idx) => {
+              const w = columnWidths[col.key] || col.minWidth || (compact ? 100 : 150);
               const isSorted = sortColumn === col.key;
               const isSortable = !!col.sortFn;
               return (
@@ -119,9 +121,10 @@ export default function DataTable<T>({
                   className={cn(
                     headerPad, 'font-medium relative group select-none whitespace-nowrap',
                     alignClass(col.align),
-                    isSortable && 'cursor-pointer hover:text-foreground transition-colors'
+                    isSortable && 'cursor-pointer hover:text-foreground transition-colors',
+                    idx === 0 && 'sticky left-0 z-20 bg-card'
                   )}
-                  style={w ? { width: w, minWidth: col.minWidth || (compact ? 50 : 60) } : { minWidth: col.minWidth || (compact ? 50 : 60) }}
+                  style={{ width: w, minWidth: col.minWidth || (compact ? 80 : 100) }}
                   onClick={() => handleSort(col.key)}
                 >
                   <span className="inline-flex items-center gap-1">
@@ -161,13 +164,16 @@ export default function DataTable<T>({
               )}
               onClick={() => onRowClick?.(item)}
             >
-              {orderedCols.map(col => {
-                const w = columnWidths[col.key];
+              {orderedCols.map((col, idx) => {
+                const w = columnWidths[col.key] || col.minWidth || (compact ? 100 : 150);
                 return (
                   <td
                     key={col.key}
-                    className={cn(cellPad, alignClass(col.align))}
-                    style={{ width: w || undefined, maxWidth: w || undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    className={cn(
+                      cellPad, alignClass(col.align),
+                      idx === 0 && 'sticky left-0 z-10 bg-card'
+                    )}
+                    style={{ width: w, maxWidth: w, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                   >
                     {col.render(item)}
                   </td>
