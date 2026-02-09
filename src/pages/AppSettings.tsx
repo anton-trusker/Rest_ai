@@ -4,13 +4,13 @@ import { Settings, Database, Bell, Shield, SlidersHorizontal } from 'lucide-reac
 
 export default function AppSettings() {
   const { user } = useAuthStore();
-  if (user?.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  if (user?.roleId !== 'role_admin') return <Navigate to="/dashboard" replace />;
 
   const sections = [
     { icon: SlidersHorizontal, title: 'General', desc: 'Manage locations, glass dimensions, bottle volumes, and measurement units', href: '/settings/general' },
+    { icon: Shield, title: 'Roles & Permissions', desc: 'Create custom roles and configure granular access rights', href: '/settings/roles' },
     { icon: Database, title: 'Database', desc: 'Manage wine catalog backups and data import/export' },
     { icon: Bell, title: 'Notifications', desc: 'Configure low stock alerts and notification preferences' },
-    { icon: Shield, title: 'Security', desc: 'Password policies, session timeouts, and access controls' },
   ];
 
   return (

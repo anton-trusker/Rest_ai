@@ -17,6 +17,7 @@ import UserManagement from "./pages/UserManagement";
 import Reports from "./pages/Reports";
 import AppSettings from "./pages/AppSettings";
 import GeneralSettings from "./pages/GeneralSettings";
+import RolesPermissions from "./pages/RolesPermissions";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
@@ -45,6 +46,7 @@ const App = () => (
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<AppSettings />} />
             <Route path="/settings/general" element={<GeneralSettings />} />
+            <Route path="/settings/roles" element={<RolesPermissions />} />
             <Route path="/profile" element={<Profile />} />
           </Route>
           <Route path="*" element={<NotFound />} />

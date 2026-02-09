@@ -1,34 +1,40 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore, useUserRole } from '@/stores/authStore';
 import {
   LayoutDashboard, Wine, Package, Users, History, BarChart3, ClipboardCheck,
   LogOut, Settings, User
 } from 'lucide-react';
+import type { ModuleKey } from '@/data/referenceData';
 
-const adminNav = [
-  { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { label: 'Current Stock', icon: Package, path: '/stock' },
-  { label: 'Inventory Count', icon: Wine, path: '/count' },
-  { label: 'Wine Catalog', icon: Wine, path: '/catalog' },
-  { label: 'User Management', icon: Users, path: '/users' },
-  { label: 'History & Audit', icon: History, path: '/history' },
-  { label: 'Session Review', icon: ClipboardCheck, path: '/sessions' },
-  { label: 'Reports', icon: BarChart3, path: '/reports' },
-  { label: 'Settings', icon: Settings, path: '/settings' },
-];
+interface NavItemDef {
+  label: string;
+  icon: React.ElementType;
+  path: string;
+  module: ModuleKey;
+}
 
-const staffNav = [
-  { label: 'Home', icon: LayoutDashboard, path: '/dashboard' },
-  { label: 'Inventory Count', icon: Wine, path: '/count' },
-  { label: 'My History', icon: History, path: '/history' },
+const allNav: NavItemDef[] = [
+  { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', module: 'dashboard' },
+  { label: 'Current Stock', icon: Package, path: '/stock', module: 'stock' },
+  { label: 'Inventory Count', icon: Wine, path: '/count', module: 'count' },
+  { label: 'Wine Catalog', icon: Wine, path: '/catalog', module: 'catalog' },
+  { label: 'User Management', icon: Users, path: '/users', module: 'users' },
+  { label: 'History & Audit', icon: History, path: '/history', module: 'history' },
+  { label: 'Session Review', icon: ClipboardCheck, path: '/sessions', module: 'sessions' },
+  { label: 'Reports', icon: BarChart3, path: '/reports', module: 'reports' },
+  { label: 'Settings', icon: Settings, path: '/settings', module: 'settings' },
 ];
 
 export default function AppSidebar() {
   const { user, logout } = useAuthStore();
+  const role = useUserRole();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const nav = user?.role === 'admin' ? adminNav : staffNav;
+  const nav = allNav.filter((item) => {
+    if (!role) return false;
+    return role.permissions[item.module] !== 'none';
+  });
 
   return (
     <>
@@ -83,7 +89,7 @@ export default function AppSidebar() {
             </div>
             <div className="flex-1 min-w-0 text-left">
               <p className="text-sm font-medium text-foreground truncate">{user?.name}</p>
-              <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+              <p className="text-xs text-muted-foreground capitalize">{role?.name}</p>
             </div>
           </button>
           <button

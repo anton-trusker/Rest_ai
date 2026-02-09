@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore, useUserRole } from '@/stores/authStore';
 import {
   LayoutDashboard, Wine, Package, History, BarChart3, Settings, Users, MoreHorizontal, ClipboardCheck, User
 } from 'lucide-react';
@@ -7,48 +7,45 @@ import { useState } from 'react';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger
 } from '@/components/ui/sheet';
+import type { ModuleKey } from '@/data/referenceData';
 
 interface NavItem {
   label: string;
   icon: React.ElementType;
   path: string;
+  module: ModuleKey;
+  primary?: boolean;
 }
 
-const adminPrimaryNav: NavItem[] = [
-  { label: 'Home', icon: LayoutDashboard, path: '/dashboard' },
-  { label: 'Count', icon: Wine, path: '/count' },
-  { label: 'Stock', icon: Package, path: '/stock' },
-  { label: 'Catalog', icon: Wine, path: '/catalog' },
-];
-
-const adminMoreNav: NavItem[] = [
-  { label: 'Users', icon: Users, path: '/users' },
-  { label: 'History', icon: History, path: '/history' },
-  { label: 'Sessions', icon: ClipboardCheck, path: '/sessions' },
-  { label: 'Reports', icon: BarChart3, path: '/reports' },
-  { label: 'Settings', icon: Settings, path: '/settings' },
-  { label: 'Profile', icon: User, path: '/profile' },
-];
-
-const staffPrimaryNav: NavItem[] = [
-  { label: 'Home', icon: LayoutDashboard, path: '/dashboard' },
-  { label: 'Count', icon: Wine, path: '/count' },
-  { label: 'History', icon: History, path: '/history' },
-];
-
-const staffMoreNav: NavItem[] = [
-  { label: 'Profile', icon: User, path: '/profile' },
+const allNavItems: NavItem[] = [
+  { label: 'Home', icon: LayoutDashboard, path: '/dashboard', module: 'dashboard', primary: true },
+  { label: 'Count', icon: Wine, path: '/count', module: 'count', primary: true },
+  { label: 'Stock', icon: Package, path: '/stock', module: 'stock', primary: true },
+  { label: 'Catalog', icon: Wine, path: '/catalog', module: 'catalog', primary: true },
+  { label: 'Users', icon: Users, path: '/users', module: 'users' },
+  { label: 'History', icon: History, path: '/history', module: 'history' },
+  { label: 'Sessions', icon: ClipboardCheck, path: '/sessions', module: 'sessions' },
+  { label: 'Reports', icon: BarChart3, path: '/reports', module: 'reports' },
+  { label: 'Settings', icon: Settings, path: '/settings', module: 'settings' },
 ];
 
 export default function MobileBottomNav() {
   const { user } = useAuthStore();
+  const role = useUserRole();
   const navigate = useNavigate();
   const location = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const isAdmin = user?.role === 'admin';
-  const primaryNav = isAdmin ? adminPrimaryNav : staffPrimaryNav;
-  const moreNav = isAdmin ? adminMoreNav : staffMoreNav;
+  const visibleItems = allNavItems.filter((item) => {
+    if (!role) return false;
+    return role.permissions[item.module] !== 'none';
+  });
+
+  const primaryNav = visibleItems.filter((i) => i.primary).slice(0, 4);
+  const moreNav = [
+    ...visibleItems.filter((i) => !i.primary),
+    { label: 'Profile', icon: User, path: '/profile', module: 'dashboard' as ModuleKey },
+  ];
   const hasMore = moreNav.length > 0;
 
   const isActive = (path: string) => location.pathname === path;

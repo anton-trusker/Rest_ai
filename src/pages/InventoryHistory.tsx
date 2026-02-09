@@ -41,7 +41,7 @@ const DATE_PRESETS = [
 export default function InventoryHistory() {
   const { user } = useAuthStore();
   const { historyColumns, setHistoryColumns } = useColumnStore();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.roleId === 'role_admin';
   const [methodFilter, setMethodFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [datePreset, setDatePreset] = useState('all');

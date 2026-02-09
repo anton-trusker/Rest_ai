@@ -94,7 +94,7 @@ export default function CurrentStock() {
     return wines;
   }, [search, statusFilter, typeFilter, locationFilter, regionFilter, countryFilter, sortBy, stockRange]);
 
-  if (user?.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  if (user?.roleId !== 'role_admin') return <Navigate to="/dashboard" replace />;
 
   const v = (key: string) => stockColumns.includes(key);
 

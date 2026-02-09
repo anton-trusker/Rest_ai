@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { mockUsers, MockUser } from '@/data/mockWines';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,13 +16,14 @@ interface UserFormDialogProps {
 }
 
 export default function UserFormDialog({ user, open, onClose }: UserFormDialogProps) {
+  const { roles } = useSettingsStore();
   const isEdit = !!user;
 
   const [form, setForm] = useState({
     name: user?.name || '',
     email: user?.email || '',
     password: '',
-    role: user?.role || 'staff',
+    roleId: user?.role === 'admin' ? 'role_admin' : 'role_staff',
     status: user?.status || 'active',
     phone: user?.phone || '',
     jobTitle: user?.jobTitle || '',
@@ -46,7 +48,6 @@ export default function UserFormDialog({ user, open, onClose }: UserFormDialogPr
 
   if (!open) return null;
 
-  // Password strength
   const pwStrength = form.password.length === 0 ? 0 : form.password.length < 6 ? 1 : form.password.length < 10 ? 2 : 3;
   const pwColors = ['', 'bg-destructive', 'bg-wine-warning', 'bg-wine-success'];
   const pwLabels = ['', 'Weak', 'Medium', 'Strong'];
@@ -84,11 +85,17 @@ export default function UserFormDialog({ user, open, onClose }: UserFormDialogPr
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Role</Label>
-              <Select value={form.role} onValueChange={v => update('role', v)}>
+              <Select value={form.roleId} onValueChange={v => update('roleId', v)}>
                 <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="staff">Staff</SelectItem>
+                  {roles.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: r.color }} />
+                        {r.name}
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

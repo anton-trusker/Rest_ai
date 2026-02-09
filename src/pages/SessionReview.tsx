@@ -54,7 +54,7 @@ export default function SessionReview() {
     });
   }, [statusFilter, search]);
 
-  if (user?.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  if (user?.roleId !== 'role_admin') return <Navigate to="/dashboard" replace />;
 
   const handleApprove = (sessionId: string) => {
     toast.success(`Session ${sessionId} approved`);

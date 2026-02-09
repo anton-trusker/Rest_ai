@@ -1,4 +1,4 @@
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore, useUserRole } from '@/stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import { User, Mail, Shield, Wine, Clock, BarChart3, LogOut, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,8 +6,9 @@ import { Separator } from '@/components/ui/separator';
 
 export default function Profile() {
   const { user, logout } = useAuthStore();
+  const role = useUserRole();
   const navigate = useNavigate();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.roleId === 'role_admin';
 
   const stats = [
     { label: 'Total Counts', value: '47', icon: Wine },
@@ -28,7 +29,7 @@ export default function Profile() {
         <div className="flex items-center justify-center gap-2 mt-2">
           <span className="wine-badge bg-primary/15 text-primary">
             <Shield className="w-3 h-3 mr-1" />
-            {user?.role === 'admin' ? 'Administrator' : 'Staff'}
+            {role?.name ?? 'Unknown'}
           </span>
         </div>
       </div>
@@ -73,7 +74,7 @@ export default function Profile() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Role</p>
-              <p className="text-sm font-medium capitalize">{user?.role}</p>
+              <p className="text-sm font-medium capitalize">{role?.name ?? 'Unknown'}</p>
             </div>
           </div>
         </div>
