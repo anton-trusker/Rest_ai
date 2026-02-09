@@ -1,0 +1,116 @@
+import { useState, useMemo } from 'react';
+import { mockWines } from '@/data/mockWines';
+import { useAuthStore } from '@/stores/authStore';
+import { Navigate } from 'react-router-dom';
+import { Search, Download, Filter } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+
+export default function CurrentStock() {
+  const { user } = useAuthStore();
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  const totalValue = mockWines.reduce((s, w) => s + (w.stockUnopened + w.stockOpened) * w.price, 0);
+
+  const filtered = useMemo(() => {
+    return mockWines.filter(w => {
+      if (!w.isActive) return false;
+      const total = w.stockUnopened + w.stockOpened;
+      if (statusFilter === 'in-stock' && total < w.minStockLevel) return false;
+      if (statusFilter === 'low' && (total >= w.minStockLevel || total === 0)) return false;
+      if (statusFilter === 'out' && total > 0) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        return w.name.toLowerCase().includes(q) || w.producer.toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }, [search, statusFilter]);
+
+  if (user?.role !== 'admin') return <Navigate to="/dashboard" replace />;
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-3xl font-heading font-bold">Current Stock</h1>
+          <p className="text-muted-foreground mt-1">
+            Total Value: <span className="text-accent font-semibold">${totalValue.toLocaleString()}</span>
+          </p>
+        </div>
+        <Button variant="outline" className="border-border">
+          <Download className="w-4 h-4 mr-2" /> Export
+        </Button>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Search wine..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 h-11 bg-card border-border" />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[160px] h-11 bg-card border-border">
+            <Filter className="w-4 h-4 mr-2" />
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="in-stock">In Stock</SelectItem>
+            <SelectItem value="low">Low Stock</SelectItem>
+            <SelectItem value="out">Out of Stock</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="wine-glass-effect rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-muted-foreground">
+                <th className="text-left p-4 font-medium">Wine</th>
+                <th className="text-left p-4 font-medium">Vintage</th>
+                <th className="text-left p-4 font-medium">Size</th>
+                <th className="text-center p-4 font-medium">Closed</th>
+                <th className="text-center p-4 font-medium">Open</th>
+                <th className="text-center p-4 font-medium">Total</th>
+                <th className="text-center p-4 font-medium">Par</th>
+                <th className="text-left p-4 font-medium">Status</th>
+                <th className="text-right p-4 font-medium">Value</th>
+                <th className="text-left p-4 font-medium">Location</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(w => {
+                const total = w.stockUnopened + w.stockOpened;
+                const value = total * w.price;
+                let statusCls = 'stock-healthy';
+                let statusLabel = '✓ In Stock';
+                if (total === 0) { statusCls = 'stock-out'; statusLabel = '✗ Out'; }
+                else if (total < w.minStockLevel) { statusCls = 'stock-low'; statusLabel = '⚠ Low'; }
+                return (
+                  <tr key={w.id} className="border-b border-border/50 hover:bg-wine-surface-hover transition-colors">
+                    <td className="p-4">
+                      <p className="font-medium">{w.name}</p>
+                      <p className="text-xs text-muted-foreground">{w.producer}</p>
+                    </td>
+                    <td className="p-4">{w.vintage || 'NV'}</td>
+                    <td className="p-4 text-muted-foreground">{w.volume}ml</td>
+                    <td className="p-4 text-center font-medium">{w.stockUnopened}</td>
+                    <td className="p-4 text-center text-muted-foreground">{w.stockOpened}</td>
+                    <td className="p-4 text-center font-semibold">{total}</td>
+                    <td className="p-4 text-center text-muted-foreground">{w.minStockLevel}</td>
+                    <td className="p-4"><span className={`wine-badge ${statusCls}`}>{statusLabel}</span></td>
+                    <td className="p-4 text-right text-accent">${value.toLocaleString()}</td>
+                    <td className="p-4 text-xs text-muted-foreground">{w.location}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

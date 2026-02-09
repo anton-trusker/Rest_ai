@@ -1,0 +1,17 @@
+{
+  "name": "Cellar - Wine Inventory",
+  "short_name": "Cellar",
+  "description": "Smart Wine Inventory Management with AI Recognition",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#141420",
+  "theme_color": "#722F37",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}
