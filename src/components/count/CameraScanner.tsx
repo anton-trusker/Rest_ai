@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Scan, Camera, Search, StopCircle, Zap, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Wine, mockWines } from '@/data/mockWines';
@@ -27,6 +27,35 @@ export default function CameraScanner({ sessionId, counted, onCount, onEndSessio
   const [showProgress, setShowProgress] = useState(false);
   const [progressWine, setProgressWine] = useState<Wine | null>(null);
   const [isCompactQuantity, setIsCompactQuantity] = useState(false);
+  const imageVideoRef = useRef<HTMLVideoElement>(null);
+  const imageStreamRef = useRef<MediaStream | null>(null);
+
+  // Start/stop camera for image mode
+  useEffect(() => {
+    if (mode === 'image' && !showQuantity && !showManualSearch && !showProgress) {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(stream => {
+          imageStreamRef.current = stream;
+          if (imageVideoRef.current) {
+            imageVideoRef.current.srcObject = stream;
+          }
+        })
+        .catch(() => {
+          toast.error('Camera not available for image mode');
+        });
+    } else {
+      if (imageStreamRef.current) {
+        imageStreamRef.current.getTracks().forEach(t => t.stop());
+        imageStreamRef.current = null;
+      }
+    }
+    return () => {
+      if (imageStreamRef.current) {
+        imageStreamRef.current.getTracks().forEach(t => t.stop());
+        imageStreamRef.current = null;
+      }
+    };
+  }, [mode, showQuantity, showManualSearch, showProgress]);
 
   // Real barcode detection handler
   const handleBarcodeDetected = useCallback((code: string) => {
@@ -161,21 +190,36 @@ export default function CameraScanner({ sessionId, counted, onCount, onEndSessio
             </div>
           </div>
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-b from-secondary/50 to-background flex items-center justify-center">
-            <div className="text-center">
-              <div className="w-56 h-72 border-2 border-primary/50 rounded-xl relative mb-4 mx-auto flex items-center justify-center">
-                <Camera className="w-12 h-12 text-primary/40" />
-                <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-primary rounded-tl-lg" />
-                <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-primary rounded-tr-lg" />
-                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-primary rounded-bl-lg" />
-                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-primary rounded-br-lg" />
+          <div className="absolute inset-0 flex flex-col">
+            {/* Live camera feed for image mode */}
+            <video
+              ref={imageVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="flex-1 object-cover w-full h-full bg-black"
+            />
+
+            {/* Overlay frame */}
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+              <div className="w-56 h-72 relative">
+                <div className="absolute top-0 left-0 w-8 h-8 border-t-3 border-l-3 border-primary rounded-tl-xl" />
+                <div className="absolute top-0 right-0 w-8 h-8 border-t-3 border-r-3 border-primary rounded-tr-xl" />
+                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-3 border-l-3 border-primary rounded-bl-xl" />
+                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-3 border-r-3 border-primary rounded-br-xl" />
               </div>
-              <p className="text-sm text-muted-foreground">Position wine label in frame</p>
+            </div>
+
+            {/* Capture button & label */}
+            <div className="absolute bottom-4 left-0 right-0 flex flex-col items-center gap-2 pointer-events-auto">
+              <p className="text-sm text-foreground/80 bg-card/60 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                Position wine label in frame
+              </p>
               <button
                 onClick={handleImageCapture}
-                className="mt-4 w-16 h-16 rounded-full border-4 border-primary flex items-center justify-center mx-auto hover:scale-105 transition-transform active:scale-95"
+                className="w-16 h-16 rounded-full border-4 border-primary flex items-center justify-center hover:scale-105 transition-transform active:scale-95"
               >
-                <div className="w-12 h-12 rounded-full wine-gradient" />
+                <div className="w-12 h-12 rounded-full bg-primary/80" />
               </button>
             </div>
           </div>
