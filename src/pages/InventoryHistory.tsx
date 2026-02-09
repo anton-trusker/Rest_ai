@@ -1,10 +1,24 @@
 import { useState, useMemo } from 'react';
-import { mockMovements, mockSessions } from '@/data/mockWines';
+import { mockMovements } from '@/data/mockWines';
 import { useAuthStore } from '@/stores/authStore';
-import { Search, Camera, Scan, Clock, Filter, CalendarDays } from 'lucide-react';
+import { useColumnStore } from '@/stores/columnStore';
+import { Search, Camera, Scan, Clock, CalendarDays, X, SlidersHorizontal } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import ColumnManager, { ColumnDef } from '@/components/ColumnManager';
+
+const HISTORY_COLUMNS: ColumnDef[] = [
+  { key: 'timestamp', label: 'Timestamp' },
+  { key: 'user', label: 'User' },
+  { key: 'wine', label: 'Wine' },
+  { key: 'method', label: 'Method' },
+  { key: 'session', label: 'Session' },
+  { key: 'closed', label: 'Closed' },
+  { key: 'open', label: 'Open' },
+  { key: 'total', label: 'Total' },
+  { key: 'confidence', label: 'Confidence' },
+];
 
 function MethodIcon({ method }: { method: string }) {
   if (method === 'barcode') return <Scan className="w-4 h-4" />;
@@ -26,15 +40,19 @@ const DATE_PRESETS = [
 
 export default function InventoryHistory() {
   const { user } = useAuthStore();
+  const { historyColumns, setHistoryColumns } = useColumnStore();
   const isAdmin = user?.role === 'admin';
   const [methodFilter, setMethodFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [datePreset, setDatePreset] = useState('all');
   const [userFilter, setUserFilter] = useState('all');
   const [sessionFilter, setSessionFilter] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
 
   const uniqueUsers = useMemo(() => [...new Set(mockMovements.map(m => m.userName))], []);
   const uniqueSessions = useMemo(() => [...new Set(mockMovements.map(m => m.sessionId))], []);
+
+  const activeFilterCount = [methodFilter, datePreset, userFilter, sessionFilter].filter(f => f !== 'all').length;
 
   const movements = useMemo(() => {
     let data = isAdmin ? mockMovements : mockMovements.filter(m => m.userId === user?.id);
@@ -58,6 +76,8 @@ export default function InventoryHistory() {
     const d = new Date(ts);
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
+
+  const v = (key: string) => historyColumns.includes(key);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -92,28 +112,49 @@ export default function InventoryHistory() {
               {DATE_PRESETS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
             </SelectContent>
           </Select>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              className={`h-11 border-border gap-2 ${showFilters ? 'bg-primary/10 text-primary border-primary/30' : ''}`}
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              {activeFilterCount > 0 && (
+                <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+          )}
+          {isAdmin && <ColumnManager columns={HISTORY_COLUMNS} visibleColumns={historyColumns} onChange={setHistoryColumns} />}
         </div>
 
-        {isAdmin && (
-          <div className="flex flex-wrap gap-3">
-            <Select value={userFilter} onValueChange={setUserFilter}>
-              <SelectTrigger className="w-[160px] h-10 bg-card border-border text-sm">
-                <SelectValue placeholder="User" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Users</SelectItem>
-                {uniqueUsers.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={sessionFilter} onValueChange={setSessionFilter}>
-              <SelectTrigger className="w-[160px] h-10 bg-card border-border text-sm">
-                <SelectValue placeholder="Session" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sessions</SelectItem>
-                {uniqueSessions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
+        {isAdmin && showFilters && (
+          <div className="wine-glass-effect rounded-xl p-4 animate-fade-in">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Advanced Filters</p>
+              {activeFilterCount > 0 && (
+                <Button variant="ghost" size="sm" className="text-xs h-7 text-muted-foreground" onClick={() => { setUserFilter('all'); setSessionFilter('all'); setMethodFilter('all'); setDatePreset('all'); }}>
+                  <X className="w-3 h-3 mr-1" /> Clear
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Select value={userFilter} onValueChange={setUserFilter}>
+                <SelectTrigger className="w-[160px] h-9 bg-card border-border text-sm"><SelectValue placeholder="User" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  {uniqueUsers.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={sessionFilter} onValueChange={setSessionFilter}>
+                <SelectTrigger className="w-[160px] h-9 bg-card border-border text-sm"><SelectValue placeholder="Session" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sessions</SelectItem>
+                  {uniqueSessions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         )}
       </div>
@@ -151,36 +192,29 @@ export default function InventoryHistory() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-muted-foreground">
-                <th className="text-left p-4 font-medium">Timestamp</th>
-                {isAdmin && <th className="text-left p-4 font-medium">User</th>}
-                <th className="text-left p-4 font-medium">Wine</th>
-                <th className="text-left p-4 font-medium">Method</th>
-                <th className="text-left p-4 font-medium">Session</th>
-                <th className="text-center p-4 font-medium">Closed</th>
-                <th className="text-center p-4 font-medium">Open</th>
-                <th className="text-center p-4 font-medium">Total</th>
-                {isAdmin && <th className="text-center p-4 font-medium">Confidence</th>}
+                {v('timestamp') && <th className="text-left p-4 font-medium">Timestamp</th>}
+                {isAdmin && v('user') && <th className="text-left p-4 font-medium">User</th>}
+                {v('wine') && <th className="text-left p-4 font-medium">Wine</th>}
+                {v('method') && <th className="text-left p-4 font-medium">Method</th>}
+                {v('session') && <th className="text-left p-4 font-medium">Session</th>}
+                {v('closed') && <th className="text-center p-4 font-medium">Closed</th>}
+                {v('open') && <th className="text-center p-4 font-medium">Open</th>}
+                {v('total') && <th className="text-center p-4 font-medium">Total</th>}
+                {isAdmin && v('confidence') && <th className="text-center p-4 font-medium">Confidence</th>}
               </tr>
             </thead>
             <tbody>
               {movements.map(m => (
                 <tr key={m.id} className="border-b border-border/50 hover:bg-wine-surface-hover transition-colors">
-                  <td className="p-4 text-muted-foreground whitespace-nowrap">
-                    <Clock className="w-3 h-3 inline mr-1" />{formatDate(m.timestamp)}
-                  </td>
-                  {isAdmin && <td className="p-4 font-medium">{m.userName}</td>}
-                  <td className="p-4">{m.wineName}</td>
-                  <td className="p-4">
-                    <span className="wine-badge bg-secondary text-secondary-foreground">
-                      <MethodIcon method={m.method} />
-                      <span className="ml-1"><MethodLabel method={m.method} /></span>
-                    </span>
-                  </td>
-                  <td className="p-4 text-muted-foreground font-mono text-xs">{m.sessionId}</td>
-                  <td className="p-4 text-center">{m.unopened}</td>
-                  <td className="p-4 text-center text-muted-foreground">{m.opened}</td>
-                  <td className="p-4 text-center font-semibold">{m.unopened + m.opened}</td>
-                  {isAdmin && <td className="p-4 text-center">{m.confidence ? `${m.confidence}%` : '—'}</td>}
+                  {v('timestamp') && <td className="p-4 text-muted-foreground whitespace-nowrap"><Clock className="w-3 h-3 inline mr-1" />{formatDate(m.timestamp)}</td>}
+                  {isAdmin && v('user') && <td className="p-4 font-medium">{m.userName}</td>}
+                  {v('wine') && <td className="p-4">{m.wineName}</td>}
+                  {v('method') && <td className="p-4"><span className="wine-badge bg-secondary text-secondary-foreground"><MethodIcon method={m.method} /><span className="ml-1"><MethodLabel method={m.method} /></span></span></td>}
+                  {v('session') && <td className="p-4 text-muted-foreground font-mono text-xs">{m.sessionId}</td>}
+                  {v('closed') && <td className="p-4 text-center">{m.unopened}</td>}
+                  {v('open') && <td className="p-4 text-center text-muted-foreground">{m.opened}</td>}
+                  {v('total') && <td className="p-4 text-center font-semibold">{m.unopened + m.opened}</td>}
+                  {isAdmin && v('confidence') && <td className="p-4 text-center">{m.confidence ? `${m.confidence}%` : '—'}</td>}
                 </tr>
               ))}
             </tbody>
@@ -189,7 +223,7 @@ export default function InventoryHistory() {
       </div>
 
       {movements.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
+        <div className="text-center py-16 text-muted-foreground">
           <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p>No entries match your filters</p>
         </div>

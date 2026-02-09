@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import {
   LayoutDashboard, Wine, Package, Users, History, BarChart3, ClipboardCheck,
-  LogOut, Settings
+  LogOut, Settings, User
 } from 'lucide-react';
 
 const adminNav = [
@@ -40,19 +40,16 @@ export default function AppSidebar() {
           </div>
           <h1 className="font-heading text-base font-semibold text-foreground">Cellar</h1>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-accent">
-            {user?.name?.charAt(0)}
-          </div>
-        </div>
+        <button onClick={() => navigate('/profile')} className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-wine-burgundy flex items-center justify-center text-xs font-bold text-primary-foreground">
+          {user?.name?.charAt(0)}
+        </button>
       </div>
 
-      {/* Desktop Sidebar - hidden on mobile */}
+      {/* Desktop Sidebar */}
       <aside className="hidden lg:flex fixed top-0 left-0 h-full w-64 bg-sidebar z-50 border-r border-sidebar-border flex-col">
-        {/* Header */}
         <div className="p-6 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl wine-gradient flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl wine-gradient flex items-center justify-center shadow-lg shadow-primary/20">
               <Wine className="w-5 h-5 text-primary-foreground" />
             </div>
             <div>
@@ -62,13 +59,12 @@ export default function AppSidebar() {
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
           {nav.map((item) => (
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`nav-item w-full ${location.pathname === item.path ? 'active' : ''}`}
+              className={`nav-item w-full ${location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path)) ? 'active' : ''}`}
             >
               <item.icon className="w-5 h-5" />
               {item.label}
@@ -78,15 +74,18 @@ export default function AppSidebar() {
 
         {/* User section */}
         <div className="p-4 border-t border-sidebar-border">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-medium text-accent">
+          <button
+            onClick={() => navigate('/profile')}
+            className="flex items-center gap-3 mb-3 w-full rounded-lg p-2 -mx-2 hover:bg-sidebar-accent transition-colors"
+          >
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-wine-burgundy flex items-center justify-center text-sm font-bold text-primary-foreground shadow-md shadow-primary/20">
               {user?.name?.charAt(0)}
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 text-left">
               <p className="text-sm font-medium text-foreground truncate">{user?.name}</p>
               <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
             </div>
-          </div>
+          </button>
           <button
             onClick={() => { logout(); navigate('/login'); }}
             className="nav-item w-full text-destructive hover:bg-destructive/10"
