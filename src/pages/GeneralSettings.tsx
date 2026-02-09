@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { Navigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, GlassWater, MapPin, Wine, Ruler } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, GlassWater, MapPin, Wine, Ruler, ChevronDown, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,24 +14,29 @@ export default function GeneralSettings() {
   const { user } = useAuthStore();
   const {
     glassDimensions, addGlassDimension, removeGlassDimension,
-    locations, addLocation, removeLocation,
+    locations, addLocation, removeLocation, addSubLocation, removeSubLocation,
     volumes, addVolume, removeVolume,
     openedBottleUnit, setOpenedBottleUnit,
   } = useSettingsStore();
 
-  // Glass dimension form
   const [newGlassLabel, setNewGlassLabel] = useState('');
   const [newGlassVolume, setNewGlassVolume] = useState('');
-
-  // Location form
   const [newLocName, setNewLocName] = useState('');
   const [newLocType, setNewLocType] = useState<'cellar' | 'bar' | 'storage'>('cellar');
-
-  // Volume form
   const [newVolMl, setNewVolMl] = useState('');
   const [newVolSize, setNewVolSize] = useState('');
+  const [expandedLocations, setExpandedLocations] = useState<Set<string>>(new Set());
+  const [newSubLocNames, setNewSubLocNames] = useState<Record<string, string>>({});
 
-  if (user?.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  if (user?.roleId !== 'role_admin') return <Navigate to="/dashboard" replace />;
+
+  const toggleExpanded = (id: string) => {
+    setExpandedLocations((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const handleAddGlass = () => {
     const vol = parseFloat(newGlassVolume);
@@ -43,9 +48,17 @@ export default function GeneralSettings() {
 
   const handleAddLocation = () => {
     if (!newLocName) { toast.error('Enter a location name'); return; }
-    addLocation({ id: `loc${Date.now()}`, name: newLocName, type: newLocType });
+    addLocation({ id: `loc${Date.now()}`, name: newLocName, type: newLocType, subLocations: [] });
     setNewLocName('');
     toast.success('Location added');
+  };
+
+  const handleAddSubLocation = (locId: string) => {
+    const name = newSubLocNames[locId]?.trim();
+    if (!name) { toast.error('Enter a sub-location name'); return; }
+    addSubLocation(locId, { id: `sub${Date.now()}`, name });
+    setNewSubLocNames((prev) => ({ ...prev, [locId]: '' }));
+    toast.success('Sub-location added');
   };
 
   const handleAddVolume = () => {
@@ -111,22 +124,61 @@ export default function GeneralSettings() {
         </div>
       </section>
 
-      {/* Locations */}
+      {/* Locations with sub-locations */}
       <section className="wine-glass-effect rounded-xl p-5 space-y-4">
         <h3 className="font-heading font-semibold text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-primary" /> Locations</h3>
-        <p className="text-sm text-muted-foreground">Storage locations for wine inventory</p>
+        <p className="text-sm text-muted-foreground">Storage locations and sub-locations for wine inventory</p>
         <div className="space-y-2">
-          {locations.map(l => (
-            <div key={l.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
-              <div>
-                <span className="font-medium">{l.name}</span>
-                <span className="text-xs text-muted-foreground ml-2 capitalize">({l.type})</span>
+          {locations.map(l => {
+            const isExpanded = expandedLocations.has(l.id);
+            return (
+              <div key={l.id} className="rounded-lg bg-secondary/50 overflow-hidden">
+                <div className="flex items-center justify-between p-3">
+                  <button
+                    onClick={() => toggleExpanded(l.id)}
+                    className="flex items-center gap-2 text-left flex-1"
+                  >
+                    {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                    <span className="font-medium">{l.name}</span>
+                    <span className="text-xs text-muted-foreground capitalize">({l.type})</span>
+                    {l.subLocations.length > 0 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary">
+                        {l.subLocations.length} sub
+                      </span>
+                    )}
+                  </button>
+                  <Button variant="ghost" size="sm" onClick={() => { removeLocation(l.id); toast.success('Removed'); }}>
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
+
+                {isExpanded && (
+                  <div className="px-3 pb-3 pl-9 space-y-2">
+                    {l.subLocations.map((sub) => (
+                      <div key={sub.id} className="flex items-center justify-between p-2 rounded-md bg-background/50">
+                        <span className="text-sm">{sub.name}</span>
+                        <Button variant="ghost" size="sm" onClick={() => { removeSubLocation(l.id, sub.id); toast.success('Removed'); }}>
+                          <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        value={newSubLocNames[l.id] || ''}
+                        onChange={(e) => setNewSubLocNames((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                        placeholder="e.g. Shelf 1"
+                        className="bg-background border-border w-36 h-8 text-sm"
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubLocation(l.id); }}
+                      />
+                      <Button size="sm" variant="outline" className="h-8 border-border" onClick={() => handleAddSubLocation(l.id)}>
+                        <Plus className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
-              <Button variant="ghost" size="sm" onClick={() => { removeLocation(l.id); toast.success('Removed'); }}>
-                <Trash2 className="w-4 h-4 text-destructive" />
-              </Button>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div className="flex gap-2 items-end">
           <div className="space-y-1">

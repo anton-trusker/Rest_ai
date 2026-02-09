@@ -6,10 +6,16 @@ export interface GlassDimension {
   volumeLitres: number; // e.g. 0.125, 0.250
 }
 
+export interface SubLocation {
+  id: string;
+  name: string;
+}
+
 export interface LocationConfig {
   id: string;
   name: string;
   type: 'cellar' | 'bar' | 'storage';
+  subLocations: SubLocation[];
 }
 
 export interface VolumeOption {
@@ -17,6 +23,48 @@ export interface VolumeOption {
   ml: number;
   label: string; // e.g. "0.375L", "0.75L", "1.5L"
   bottleSize: string; // "Half", "Standard", "Magnum"
+}
+
+// ====================== ROLES & PERMISSIONS ======================
+
+export type PermissionLevel = 'none' | 'view' | 'edit' | 'full';
+
+export type ModuleKey =
+  | 'dashboard'
+  | 'catalog'
+  | 'stock'
+  | 'count'
+  | 'history'
+  | 'sessions'
+  | 'reports'
+  | 'settings'
+  | 'users';
+
+export const ALL_MODULES: { key: ModuleKey; label: string }[] = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'catalog', label: 'Wine Catalog' },
+  { key: 'stock', label: 'Current Stock' },
+  { key: 'count', label: 'Inventory Count' },
+  { key: 'history', label: 'History & Audit' },
+  { key: 'sessions', label: 'Session Review' },
+  { key: 'reports', label: 'Reports' },
+  { key: 'settings', label: 'Settings' },
+  { key: 'users', label: 'User Management' },
+];
+
+export const ALL_PERMISSION_LEVELS: { value: PermissionLevel; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'view', label: 'View' },
+  { value: 'edit', label: 'Edit' },
+  { value: 'full', label: 'Full' },
+];
+
+export interface AppRole {
+  id: string;
+  name: string;
+  color: string;
+  isBuiltin: boolean; // cannot delete builtin roles
+  permissions: Record<ModuleKey, PermissionLevel>;
 }
 
 // Countries with their regions, sub-regions, and appellations
@@ -41,11 +89,22 @@ export const defaultGlassDimensions: GlassDimension[] = [
 ];
 
 export const defaultLocations: LocationConfig[] = [
-  { id: 'loc1', name: 'Cellar A', type: 'cellar' },
-  { id: 'loc2', name: 'Cellar B', type: 'cellar' },
-  { id: 'loc3', name: 'Bar', type: 'bar' },
-  { id: 'loc4', name: 'Bar Fridge', type: 'bar' },
-  { id: 'loc5', name: 'Storage Room', type: 'storage' },
+  { id: 'loc1', name: 'Cellar A', type: 'cellar', subLocations: [
+    { id: 'sub1', name: 'Rack 1' },
+    { id: 'sub2', name: 'Rack 2' },
+    { id: 'sub3', name: 'Shelf 1' },
+  ]},
+  { id: 'loc2', name: 'Cellar B', type: 'cellar', subLocations: [
+    { id: 'sub4', name: 'Rack 1' },
+    { id: 'sub5', name: 'Shelf 1' },
+  ]},
+  { id: 'loc3', name: 'Bar', type: 'bar', subLocations: [] },
+  { id: 'loc4', name: 'Bar Fridge', type: 'bar', subLocations: [
+    { id: 'sub6', name: 'Shelf 1' },
+    { id: 'sub7', name: 'Shelf 2' },
+    { id: 'sub8', name: 'Shelf 3' },
+  ]},
+  { id: 'loc5', name: 'Storage Room', type: 'storage', subLocations: [] },
 ];
 
 export const defaultVolumes: VolumeOption[] = [
@@ -57,6 +116,21 @@ export const defaultVolumes: VolumeOption[] = [
   { id: 'v6', ml: 1500, label: '1.500L', bottleSize: 'Magnum' },
   { id: 'v7', ml: 3000, label: '3.000L', bottleSize: 'Jeroboam' },
   { id: 'v8', ml: 5000, label: '5.000L', bottleSize: 'Rehoboam' },
+];
+
+const fullPermissions: Record<ModuleKey, PermissionLevel> = {
+  dashboard: 'full', catalog: 'full', stock: 'full', count: 'full',
+  history: 'full', sessions: 'full', reports: 'full', settings: 'full', users: 'full',
+};
+
+const staffPermissions: Record<ModuleKey, PermissionLevel> = {
+  dashboard: 'view', catalog: 'view', stock: 'none', count: 'edit',
+  history: 'view', sessions: 'none', reports: 'none', settings: 'none', users: 'none',
+};
+
+export const defaultRoles: AppRole[] = [
+  { id: 'role_admin', name: 'Admin', color: 'hsl(0, 72%, 51%)', isBuiltin: true, permissions: fullPermissions },
+  { id: 'role_staff', name: 'Staff', color: 'hsl(210, 40%, 50%)', isBuiltin: true, permissions: staffPermissions },
 ];
 
 export const defaultWineRegions: WineRegionData[] = [

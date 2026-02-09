@@ -43,7 +43,7 @@ function MethodBadge({ method }: { method: string }) {
 export default function Dashboard() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.roleId === 'role_admin';
 
   const totalWines = mockWines.filter(w => w.isActive).length;
   const totalStock = mockWines.reduce((s, w) => s + w.stockUnopened + w.stockOpened, 0);
