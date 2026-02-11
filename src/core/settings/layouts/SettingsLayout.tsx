@@ -8,7 +8,10 @@ import {
     Palette,
     BrainCircuit,
     Settings2,
-    Info
+    Users,
+    Shield,
+    Info,
+    ClipboardCheck
 } from 'lucide-react';
 import { NavLink, Outlet, useLocation, Navigate } from 'react-router-dom';
 import { useFeatureFlag } from '@/core/feature-flags/useFeatureFlag';
@@ -38,6 +41,13 @@ const settingsTabs: SettingsTab[] = [
         icon: Settings2,
         description: 'General application preferences',
         permission: { module: 'settings', action: 'view' }
+    },
+    {
+        label: 'Users',
+        path: '/settings/users',
+        icon: Users,
+        description: 'Manage staff access and roles',
+        permission: { module: 'users', action: 'view' }
     },
     {
         label: 'Business Profile',
@@ -95,55 +105,51 @@ const settingsTabs: SettingsTab[] = [
     },
 ];
 
-// Fix missing import
-import { ClipboardCheck } from 'lucide-react';
+interface SettingsNavItemProps {
+    item: SettingsTab;
+}
+
+function SettingsNavItem({ item }: SettingsNavItemProps) {
+    const isFlagEnabled = useFeatureFlag(item.flag || '');
+    const hasPermission = usePermission(item.permission?.module || '', item.permission?.action || '');
+
+    const isVisible = (!item.flag || isFlagEnabled) && (!item.permission || hasPermission);
+    if (!isVisible) return null;
+
+    return (
+        <NavLink
+            to={item.path}
+            className={({ isActive }) =>
+                cn(
+                    "justify-start hover:bg-muted/50 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActive
+                        ? "bg-muted text-primary hover:bg-muted"
+                        : "text-muted-foreground hover:text-foreground"
+                )
+            }
+        >
+            <item.icon className="h-4 w-4" />
+            {item.label}
+        </NavLink>
+    );
+}
 
 export default function SettingsLayout() {
     const location = useLocation();
 
-    // Filter tabs based on permissions and flags
-    const visibleTabs = settingsTabs.filter(tab => {
-        // Check Flag
-        if (tab.flag) {
-            const isEnabled = useFeatureFlag(tab.flag);
-            if (!isEnabled) return false;
-        }
-        // Check Permission
-        if (tab.permission) {
-            const hasPerm = usePermission(tab.permission.module, tab.permission.action);
-            if (!hasPerm) return false;
-        }
-        return true;
-    });
-
     // If we're at /settings root, redirect to first available tab
+    // This is tricky because we need to know the first visible tab
+    // We can pre-calculate visibility or just use a simpler check for the redirect
     if (location.pathname === '/settings') {
-        const firstTab = visibleTabs[0];
-        if (firstTab) {
-            return <Navigate to={firstTab.path} replace />;
-        }
+        return <Navigate to="/settings/general" replace />;
     }
 
     return (
         <div className="flex flex-col space-y-8 lg:flex-row lg:space-x-12 lg:space-y-0 h-full">
-            <aside className="lg:w-1/5 overflow-y-auto">
+            <aside className="lg:w-1/4 overflow-y-auto">
                 <nav className="flex space-x-2 lg:flex-col lg:space-x-0 lg:space-y-1">
-                    {visibleTabs.map((item) => (
-                        <NavLink
-                            key={item.path}
-                            to={item.path}
-                            className={({ isActive }) =>
-                                cn(
-                                    "justify-start hover:bg-muted/50 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                                    isActive
-                                        ? "bg-muted text-primary hover:bg-muted"
-                                        : "text-muted-foreground hover:text-foreground"
-                                )
-                            }
-                        >
-                            <item.icon className="h-4 w-4" />
-                            {item.label}
-                        </NavLink>
+                    {settingsTabs.map((item) => (
+                        <SettingsNavItem key={item.path} item={item} />
                     ))}
                 </nav>
             </aside>

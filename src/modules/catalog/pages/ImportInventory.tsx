@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { mockWines } from '@/core/lib/mockData';
+import { mockWines, type Wine } from '@/core/lib/mockData';
 import {
     parseCSVFile, autoMapColumns, validateRows, mappedRowToWine, generateTemplate,
     COLUMN_DEFINITIONS, ParsedCSV, ColumnMapping, ValidationResult,
@@ -88,7 +88,7 @@ export default function ImportInventory() {
             toImport.forEach((row, i) => {
                 const wine = mappedRowToWine(row, i);
                 const newId = `imp-${Date.now()}-${i}`;
-                mockWines.push({ id: newId, ...wine } as any);
+                mockWines.push({ id: newId, ...wine } as Wine);
             });
 
             setImporting(false);
@@ -129,7 +129,7 @@ export default function ImportInventory() {
                 {STEPS.map((label, i) => (
                     <div key={label} className="flex items-center gap-2">
                         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${i === step ? 'bg-primary text-primary-foreground' :
-                                i < step ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground'
+                            i < step ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground'
                             }`}>
                             {i < step ? <Check className="w-3 h-3" /> : <span>{i + 1}</span>}
                             <span className="hidden sm:inline">{label}</span>

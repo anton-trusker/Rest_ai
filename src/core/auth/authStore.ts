@@ -1,12 +1,14 @@
 import { create } from 'zustand';
 import { supabase } from '@/core/lib/supabase/client';
 import { ALL_MODULES, permKey, type ModuleKey, type PermissionLevel } from '@/core/lib/referenceData';
+import { useShallow } from 'zustand/react/shallow';
 
 export interface User {
     id: string;
     name: string;
     email: string;
     roleId: string;
+    roleName?: string;
     avatar?: string;
     permissions?: string[]; // Simplified list of "module.action" strings
 }
@@ -15,7 +17,7 @@ interface AuthState {
     user: User | null;
     isAuthenticated: boolean;
     isLoading: boolean;
-    login: (email: string, password: string) => Promise<{ error: any }>;
+    login: (email: string, password: string) => Promise<{ error: Error | null }>;
     logout: () => Promise<void>;
     loadUser: () => Promise<void>;
 }
@@ -53,23 +55,38 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 .from('profiles')
                 .select('*')
                 .eq('id', authUser.id)
-                .single();
+                .maybeSingle();
 
             // Fetch User Role (handle multiple roles if needed, for now grab first)
             const { data: userRoles } = await supabase
                 .from('user_roles')
-                .select('role_id, roles(name, id)')
+                .select('role_id, roles(name, display_name, id)')
                 .eq('user_id', authUser.id)
                 .limit(1)
-                .single();
+                .maybeSingle();
 
             const roleId = userRoles?.role_id || 'unknown';
-            const roleName = userRoles?.roles?.name;
+            let roleName = userRoles?.roles?.display_name || userRoles?.roles?.name;
+
+            // Hardcoded fallback for known system roles if names are missing in DB
+            if (!roleName && roleId === 'role_admin') roleName = 'Admin';
+            if (!roleName && roleId === 'role_staff') roleName = 'Staff';
+            if (roleId === 'role_super_admin' || roleName?.toLowerCase().includes('super')) {
+                if (!roleName) roleName = 'Super Admin';
+            }
 
             // Fetch Permissions for this Role
             let permissionsList: string[] = [];
-            if (roleName === 'super_admin') {
-                // Super Admin gets wildcards or handled in check logic
+            const isFullAccessRole =
+                roleId === 'role_super_admin' ||
+                roleId === 'role_admin' ||
+                roleName === 'Super Admin' ||
+                roleName === 'Admin' ||
+                roleName === 'super_admin' ||
+                roleName === 'admin';
+
+            if (isFullAccessRole) {
+                // Super Admin and Admin get wildcards
                 permissionsList = ['*'];
             } else if (roleId !== 'unknown') {
                 const { data: rolePerms } = await supabase
@@ -77,7 +94,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                     .select('permissions(module, action)')
                     .eq('role_id', roleId);
 
-                permissionsList = rolePerms?.map((rp: any) => `${rp.permissions.module}.${rp.permissions.action}`) || [];
+                permissionsList = rolePerms?.map((rp: { permissions: { module: string; action: string } }) => `${rp.permissions.module}.${rp.permissions.action}`) || [];
             }
 
             const user: User = {
@@ -85,6 +102,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 name: profile?.full_name || authUser.email || 'User',
                 email: authUser.email || '',
                 roleId: roleId,
+                roleName: roleName,
                 avatar: profile?.avatar_url,
                 permissions: permissionsList
             };
@@ -126,14 +144,18 @@ export function usePermission(module: string, action: string): boolean {
 
 // Re-export specific hook if needed by legacy components
 export function useHasPermission(module: string, requiredLevel: PermissionLevel): boolean {
-    // Adapter for legacy "level" check -> maps to view/edit/etc actions if needed
-    // For now, simple mapping:
-    if (requiredLevel === 'view') return usePermission(module, 'view');
-    if (requiredLevel === 'edit') return usePermission(module, 'edit');
+    const hasView = usePermission(module, 'view');
+    const hasEdit = usePermission(module, 'edit');
+
+    if (requiredLevel === 'view') return hasView;
+    if (requiredLevel === 'edit') return hasEdit;
     return false;
 }
 
 export function useUserRole() {
-    return useAuthStore.getState().user?.roleId;
+    return useAuthStore(useShallow((s) => ({
+        id: s.user?.roleId,
+        name: s.user?.roleName
+    })));
 }
 

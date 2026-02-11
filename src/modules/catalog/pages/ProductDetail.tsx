@@ -25,8 +25,8 @@ interface Product {
     image_url: string | null;
     par_level: number | null;
     is_countable: boolean;
-    metadata: any;
-    syrve_data: any;
+    metadata: Record<string, unknown> | null;
+    syrve_data: Record<string, unknown> | null;
     synced_at: string | null;
     created_at: string;
 }

@@ -1,8 +1,8 @@
 interface Navigator {
-    msSaveBlob?: (blob: any, defaultName?: string) => boolean
+    msSaveBlob?: (blob: Blob, defaultName?: string) => boolean
 }
 
-export function exportToCSV(data: any[], filename: string) {
+export function exportToCSV(data: Record<string, unknown>[], filename: string) {
     if (!data || !data.length) {
         console.warn("No data to export");
         return;
@@ -16,12 +16,12 @@ export function exportToCSV(data: any[], filename: string) {
         headers.join(","), // Header row
         ...data.map(row =>
             headers.map(fieldName => {
-                const value = row[fieldName];
+                const value = row[fieldName] as string | number | boolean | null;
                 // Handle strings with commas or quotes
                 if (typeof value === "string") {
                     return `"${value.replace(/"/g, '""')}"`;
                 }
-                return value;
+                return value ?? "";
             }).join(",")
         )
     ].join("\n");

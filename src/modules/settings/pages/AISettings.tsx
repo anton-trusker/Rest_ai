@@ -28,9 +28,10 @@ import { useToast } from '@/core/ui/use-toast'
 import { Sparkles, Save, Loader2, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react'
 
 const GEMINI_MODELS = [
-    { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (Recommended)', cost: '$0.00015/image' },
-    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (Higher accuracy)', cost: '$0.0025/image' },
-    { value: 'gemini-pro-vision', label: 'Gemini Pro Vision (Legacy)', cost: '$0.0025/image' },
+    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Recommended)', cost: '$0.0001/image' },
+    { value: 'gemini-2.0-pro', label: 'Gemini 2.0 Pro (Ultra accurate)', cost: '$0.0015/image' },
+    { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (Legacy/Fast)', cost: '$0.00015/image' },
+    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (Balanced)', cost: '$0.0025/image' },
 ]
 
 export default function AISettings() {
@@ -38,7 +39,7 @@ export default function AISettings() {
     const queryClient = useQueryClient()
 
     const [apiKey, setApiKey] = useState('')
-    const [modelName, setModelName] = useState('gemini-1.5-flash')
+    const [modelName, setModelName] = useState('gemini-2.0-flash')
     const [rateLimit, setRateLimit] = useState(60)
     const [showKey, setShowKey] = useState(false)
 
@@ -87,7 +88,7 @@ export default function AISettings() {
     // Initialize form with existing config
     useState(() => {
         if (config) {
-            setModelName(config.model_name || 'gemini-1.5-flash')
+            setModelName(config.model_name || 'gemini-2.0-flash')
             setRateLimit(config.rate_limit_per_minute || 60)
         }
     })
@@ -140,10 +141,11 @@ export default function AISettings() {
             setApiKey('')  // Clear form
             setShowKey(false)
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
+            const err = error as Error;
             toast({
                 title: 'Failed to save',
-                description: error.message,
+                description: err.message,
                 variant: 'destructive',
             })
         },

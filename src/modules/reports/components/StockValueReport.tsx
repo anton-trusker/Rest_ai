@@ -52,7 +52,7 @@ export function StockValueReport() {
             // Group by category
             const categoryMap = new Map<string, StockValueItem>();
 
-            data.forEach((item: any) => {
+            data.forEach((item: { quantity: number; products: { cost_price: number | null; categories: { name: string } | null } }) => {
                 const categoryName = item.products.categories?.name ?? "Uncategorized";
                 const value = item.quantity * (item.products.cost_price || 0);
 
@@ -85,7 +85,7 @@ export function StockValueReport() {
         {
             header: "Total Value",
             accessorKey: "total_value",
-            cell: ({ row }: any) => {
+            cell: ({ row }: { row: { original: StockValueItem } }) => {
                 const val = row.original.total_value;
                 return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
             }

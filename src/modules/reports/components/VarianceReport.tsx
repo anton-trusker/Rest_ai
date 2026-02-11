@@ -65,14 +65,19 @@ export function VarianceReport() {
 
             if (error) throw error;
 
-            return data.map((item: any) => ({
+            return data.map((item: {
+                quantity: number;
+                expected_amount: number | null;
+                variance: number | null;
+                products: { id: string; name: string; cost_price: number | null; main_unit: string; categories: { name: string } | null }
+            }) => ({
                 product_id: item.products.id,
                 product_name: item.products.name,
                 category_name: item.products.categories?.name ?? "Uncategorized",
                 expected_amount: item.expected_amount || 0,
                 counted_amount: item.quantity,
-                variance: item.variance,
-                variance_value: item.variance * (item.products.cost_price || 0),
+                variance: item.variance || 0,
+                variance_value: (item.variance || 0) * (item.products.cost_price || 0),
                 unit: item.products.main_unit
             })) as VarianceItem[];
         }
@@ -92,7 +97,7 @@ export function VarianceReport() {
         {
             header: "Variance",
             accessorKey: "variance",
-            cell: ({ row }: any) => {
+            cell: ({ row }: { row: { original: VarianceItem } }) => {
                 const val = row.original.variance;
                 return (
                     <span className={val < 0 ? "text-destructive font-bold" : "text-green-600 font-bold"}>
@@ -104,7 +109,7 @@ export function VarianceReport() {
         {
             header: "Value Impact",
             accessorKey: "variance_value",
-            cell: ({ row }: any) => {
+            cell: ({ row }: { row: { original: VarianceItem } }) => {
                 const val = row.original.variance_value;
                 return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
             }

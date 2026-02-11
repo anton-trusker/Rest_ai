@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -59,9 +59,9 @@ export default function SyrveSettings() {
 
     useEffect(() => {
         fetchConfig();
-    }, []);
+    }, [fetchConfig]);
 
-    const fetchConfig = async () => {
+    const fetchConfig = useCallback(async () => {
         setIsLoading(true);
         try {
             const { data, error } = await supabase
@@ -90,7 +90,7 @@ export default function SyrveSettings() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [form]);
 
     const testConnection = async () => {
         const values = form.getValues();

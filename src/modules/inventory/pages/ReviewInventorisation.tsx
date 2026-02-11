@@ -116,10 +116,11 @@ export default function ReviewInventorisation() {
                     title: 'Session marked for review',
                     description: 'Ready for final approval',
                 })
-            } catch (error: any) {
+            } catch (error: unknown) {
+                const err = error as Error;
                 toast({
                     title: 'Error',
-                    description: error.message,
+                    description: err.message,
                     variant: 'destructive',
                 })
             }
@@ -145,10 +146,11 @@ export default function ReviewInventorisation() {
             })
 
             navigate('/inventory')
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const err = error as Error;
             toast({
                 title: 'Error approving inventorisation',
-                description: error.message,
+                description: err.message,
                 variant: 'destructive',
             })
         } finally {

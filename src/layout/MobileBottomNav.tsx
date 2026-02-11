@@ -36,8 +36,16 @@ export default function MobileBottomNav() {
     const [moreOpen, setMoreOpen] = useState(false);
 
     const visibleItems = allNavItems.filter((item) => {
-        if (!role) return false;
-        return role.permissions[item.module] !== 'none';
+        const user = useAuthStore.getState().user;
+        if (!user) return false;
+
+        // Bypass for Super Admin
+        if (user.permissions?.includes('*')) return true;
+
+        // Allow dashboard for all authenticated users
+        if (item.module === 'dashboard') return true;
+
+        return user.permissions?.includes(`${item.module}.view`);
     });
 
     const primaryNav = visibleItems.filter((i) => i.primary).slice(0, 4);
@@ -63,8 +71,8 @@ export default function MobileBottomNav() {
                         key={item.path}
                         onClick={() => handleNav(item.path)}
                         className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg min-w-[64px] transition-all ${isActive(item.path)
-                                ? 'text-accent'
-                                : 'text-muted-foreground'
+                            ? 'text-accent'
+                            : 'text-muted-foreground'
                             }`}
                     >
                         <item.icon className={`w-5 h-5 ${isActive(item.path) ? 'drop-shadow-[0_0_6px_hsl(var(--wine-gold)/0.5)]' : ''}`} />
@@ -93,8 +101,8 @@ export default function MobileBottomNav() {
                                         key={item.path}
                                         onClick={() => handleNav(item.path)}
                                         className={`flex flex-col items-center gap-2 p-4 rounded-xl transition-colors ${isActive(item.path)
-                                                ? 'bg-primary/15 text-accent'
-                                                : 'text-muted-foreground hover:bg-secondary'
+                                            ? 'bg-primary/15 text-accent'
+                                            : 'text-muted-foreground hover:bg-secondary'
                                             }`}
                                     >
                                         <item.icon className="w-6 h-6" />

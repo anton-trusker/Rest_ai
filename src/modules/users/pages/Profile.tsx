@@ -1,4 +1,4 @@
-import { useAuthStore, useUserRole } from '@/core/auth/authStore';
+import { useAuthStore, useUserRole, usePermission } from '@/core/auth/authStore';
 import { useNavigate } from 'react-router-dom';
 import { User, Mail, Shield, Wine, Clock, BarChart3, LogOut, Settings } from 'lucide-react';
 import { Button } from '@/core/ui/button';
@@ -8,7 +8,7 @@ export default function Profile() {
     const { user, logout } = useAuthStore();
     const role = useUserRole();
     const navigate = useNavigate();
-    const isAdmin = user?.roleId === 'role_admin';
+    const canManageSettings = usePermission('settings', 'view');
 
     const stats = [
         { label: 'Total Counts', value: '47', icon: Wine },
@@ -82,7 +82,7 @@ export default function Profile() {
 
             {/* Actions */}
             <div className="flex flex-col gap-3">
-                {isAdmin && (
+                {canManageSettings && (
                     <Button variant="outline" className="w-full h-12 border-border justify-start gap-3" onClick={() => navigate('/settings')}>
                         <Settings className="w-4 h-4" /> App Settings
                     </Button>

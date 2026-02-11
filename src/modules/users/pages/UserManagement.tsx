@@ -21,7 +21,11 @@ interface UserData {
   last_sign_in_at?: string;
 }
 
-export default function UserManagement() {
+interface UserManagementProps {
+  isSuperAdminView?: boolean;
+}
+
+export default function UserManagement({ isSuperAdminView }: UserManagementProps) {
   const { user: currentUser } = useAuthStore();
   const [users, setUsers] = useState<UserData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,7 +52,13 @@ export default function UserManagement() {
       if (error) throw error;
 
       // Map to flat structure
-      const mappedUsers = data.map((p: any) => ({
+      const mappedUsers = data.map((p: {
+        id: string;
+        full_name: string | null;
+        avatar_url: string | null;
+        is_active: boolean;
+        user_roles: { roles: { name: string; display_name: string } | null }[] | null;
+      }) => ({
         id: p.id,
         full_name: p.full_name,
         email: 'hidden@email.com', // Profiles usually don't expose email publicly for privacy, need admin function to list emails or store in profile
@@ -58,7 +68,12 @@ export default function UserManagement() {
         last_sign_in_at: new Date().toISOString() // Placeholder or fetch from audit logs
       }));
 
-      setUsers(mappedUsers);
+      // Filter based on view
+      const finalUsers = isSuperAdminView
+        ? mappedUsers
+        : mappedUsers.filter(u => u.role !== 'Super Admin'); // Admins can't see Super Admins
+
+      setUsers(finalUsers);
     } catch (err) {
       console.error('Error fetching users:', err);
       toast.error('Failed to load users');
@@ -70,6 +85,34 @@ export default function UserManagement() {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  const handleResetPassword = async (userId: string) => {
+    const newPassword = Math.random().toString(36).slice(-8); // Generate temp password
+    try {
+      const { error } = await supabase.functions.invoke('admin-reset-password', {
+        body: { userId, newPassword }
+      });
+      if (error) throw error;
+      toast.success(`Password reset to: ${newPassword}. Please share this with the user.`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to reset password');
+    }
+  };
+
+  const handleToggleStatus = async (user: UserData) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: !user.is_active })
+        .eq('id', user.id);
+
+      if (error) throw error;
+      toast.success(`User ${user.is_active ? 'deactivated' : 'activated'} successfully`);
+      fetchUsers();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update user status');
+    }
+  };
 
   const filteredUsers = users.filter(u =>
     u.full_name?.toLowerCase().includes(search.toLowerCase())
@@ -150,8 +193,15 @@ export default function UserManagement() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem>Edit User</DropdownMenuItem>
-                  <DropdownMenuItem>Reset Password</DropdownMenuItem>
-                  <DropdownMenuItem className="text-destructive">Deactivate</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleResetPassword(user.id)}>
+                    Reset Password
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className={user.is_active ? 'text-destructive' : 'text-wine-success'}
+                    onClick={() => handleToggleStatus(user)}
+                  >
+                    {user.is_active ? 'Deactivate' : 'Activate'}
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

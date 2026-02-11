@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Plus, Edit2 } from "lucide-react";
 import { supabase } from "@/core/lib/supabase/client";
 import { Button } from "@/core/ui/button";
@@ -51,9 +51,9 @@ export default function GlassSettings() {
 
     useEffect(() => {
         fetchGlasses();
-    }, []);
+    }, [fetchGlasses]);
 
-    const fetchGlasses = async () => {
+    const fetchGlasses = useCallback(async () => {
         setIsLoading(true);
         const { data, error } = await supabase
             .from('glass_dimensions')
@@ -70,7 +70,7 @@ export default function GlassSettings() {
             setGlasses(data || []);
         }
         setIsLoading(false);
-    };
+    }, [toast]);
 
     const handleOpenDialog = (glass?: GlassDimension) => {
         if (glass) {

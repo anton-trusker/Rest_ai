@@ -8,7 +8,11 @@ import { Label } from '@/core/ui/label';
 import { toast } from 'sonner';
 import loginHero from '@/assets/login-hero.jpg';
 
-export default function Login() {
+interface LoginProps {
+    isAdminEntry?: boolean;
+}
+
+export default function Login({ isAdminEntry }: LoginProps) {
     const { login, isLoading } = useAuthStore();
     const navigate = useNavigate();
     const location = useLocation();
@@ -18,7 +22,7 @@ export default function Login() {
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const from = location.state?.from?.pathname || '/dashboard';
+    const from = location.state?.from?.pathname;
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -27,19 +31,44 @@ export default function Login() {
 
         try {
             const { error: authError } = await login(email, password);
+            if (authError) throw authError;
 
-            if (authError) {
-                setError(authError.message || 'Invalid credentials');
-                toast.error('Login failed');
+            // Wait for user to be loaded to check role
+            const user = useAuthStore.getState().user;
+
+            if (user?.permissions?.includes('*')) {
+                // Super Admin redirect
+                navigate('/super-admin/feature-flags');
+                toast.success('Welcome, Super Admin');
             } else {
+                // Standard redirect
+                navigate(from || '/dashboard', { replace: true });
                 toast.success('Welcome back');
-                navigate(from, { replace: true });
             }
-        } catch (err) {
-            setError('An unexpected error occurred');
+        } catch (err: unknown) {
+            const error = err as Error;
+            setError(error.message || 'Invalid credentials');
+            toast.error('Login failed');
             console.error(err);
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleForgotPassword = async () => {
+        if (!email) {
+            toast.error('Please enter your email first');
+            return;
+        }
+
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/login`,
+            });
+            if (error) throw error;
+            toast.success('Password reset email sent');
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to send reset email');
         }
     };
 
@@ -78,12 +107,12 @@ export default function Login() {
                         <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
                             <Sparkles className="w-5 h-5 text-primary-foreground" />
                         </div>
-                        <h1 className="font-heading text-2xl font-bold">Parra</h1>
+                        <h1 className="font-heading text-2xl font-bold">Parra {isAdminEntry && <span className="text-muted-foreground font-normal">Admin</span>}</h1>
                     </div>
 
                     <div className="space-y-2">
-                        <h2 className="font-heading text-3xl font-bold">Welcome back</h2>
-                        <p className="text-muted-foreground">Sign in to your account to continue</p>
+                        <h2 className="font-heading text-3xl font-bold">{isAdminEntry ? 'System Access' : 'Welcome back'}</h2>
+                        <p className="text-muted-foreground">{isAdminEntry ? 'Administrative Portal' : 'Sign in to your account to continue'}</p>
                     </div>
 
                     <form onSubmit={handleLogin} className="space-y-4">
@@ -109,7 +138,13 @@ export default function Login() {
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <Label htmlFor="password">Password</Label>
-                                <span className="text-xs text-primary cursor-pointer hover:underline">Forgot password?</span>
+                                <button
+                                    type="button"
+                                    onClick={handleForgotPassword}
+                                    className="text-xs text-primary cursor-pointer hover:underline bg-transparent border-0 p-0"
+                                >
+                                    Forgot password?
+                                </button>
                             </div>
                             <Input
                                 id="password"

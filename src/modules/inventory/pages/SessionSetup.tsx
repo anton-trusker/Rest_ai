@@ -125,7 +125,7 @@ export default function SessionSetup() {
                     {/* Session Type */}
                     <div className="space-y-3">
                         <Label>Session Type</Label>
-                        <RadioGroup value={sessionType} onValueChange={(v) => setSessionType(v as any)}>
+                        <RadioGroup value={sessionType} onValueChange={(v) => setSessionType(v as 'full' | 'partial' | 'spot_check')}>
                             <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="full" id="full" />
                                 <Label htmlFor="full" className="font-normal cursor-pointer">

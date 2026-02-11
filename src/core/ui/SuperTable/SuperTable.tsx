@@ -35,7 +35,10 @@ export function SuperTable<T>({ data, columns, onRowClick }: SuperTableProps<T>)
                 columnWidths={columnWidths}
                 onColumnResize={handleColumnResize}
                 onRowClick={onRowClick}
-                keyExtractor={(item: any) => item.id || item.product_id || JSON.stringify(item)}
+                keyExtractor={(item: T) => {
+                    const i = item as T & { id?: string; product_id?: string };
+                    return i.id || i.product_id || JSON.stringify(item);
+                }}
             />
         </div>
     );

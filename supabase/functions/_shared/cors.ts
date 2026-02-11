@@ -11,7 +11,7 @@ export function createErrorResponse(message: string, status = 400) {
     )
 }
 
-export function createSuccessResponse(data: any, status = 200) {
+export function createSuccessResponse(data: unknown, status = 200) {
     return new Response(
         JSON.stringify(data),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status }

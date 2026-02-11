@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
             .select('roles(name)')
             .eq('user_id', caller.id)
 
-        const isAdmin = roles?.some((r: any) => ['super_admin', 'admin'].includes(r.roles.name))
+        const isAdmin = roles?.some((r: { roles: { name: string } }) => ['super_admin', 'admin'].includes(r.roles.name))
         if (!isAdmin) throw new Error('Forbidden: Admin access only')
 
         const { userId, newPassword } = await req.json()

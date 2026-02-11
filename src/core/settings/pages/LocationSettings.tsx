@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Plus, Trash2, Edit2, Archive, ArchiveRestore } from "lucide-react";
 import { supabase } from "@/core/lib/supabase/client";
 import { Button } from "@/core/ui/button";
@@ -63,9 +63,9 @@ export default function LocationSettings() {
 
     useEffect(() => {
         fetchLocations();
-    }, []);
+    }, [fetchLocations]);
 
-    const fetchLocations = async () => {
+    const fetchLocations = useCallback(async () => {
         setIsLoading(true);
         const { data, error } = await supabase
             .from('locations')
@@ -82,7 +82,7 @@ export default function LocationSettings() {
             setLocations(data || []);
         }
         setIsLoading(false);
-    };
+    }, [toast]);
 
     const handleOpenDialog = (location?: Location) => {
         if (location) {

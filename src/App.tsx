@@ -19,9 +19,19 @@ import ProductList from "@/modules/catalog/pages/ProductCatalog";
 import ProductDetail from "@/modules/catalog/pages/ProductDetail";
 import ProductForm from "@/modules/catalog/pages/ProductForm";
 import ImportInventory from "@/modules/catalog/pages/ImportInventory";
-import Settings from "@/modules/settings/pages/Settings";
 import FeatureFlagsSettings from "@/modules/settings/pages/FeatureFlagsSettings";
 import AISettings from "@/modules/settings/pages/AISettings";
+
+// Core Settings Pages
+import AppSettings from "@/core/settings/pages/AppSettings";
+import GeneralSettings from "@/core/settings/pages/GeneralSettings";
+import BusinessSettings from "@/core/settings/pages/BusinessSettings";
+import LocationSettings from "@/core/settings/pages/LocationSettings";
+import GlassSettings from "@/core/settings/pages/GlassSettings";
+import InventorySettings from "@/core/settings/pages/InventorySettings";
+import SyrveSettings from "@/core/settings/pages/SyrveSettings";
+import BrandingSettings from "@/core/settings/pages/BrandingSettings";
+import FeatureFlagsAdmin from "@/core/settings/pages/FeatureFlagsAdmin";
 
 // Inventory Pages (Global Session Model)
 import InventoryCount from "@/modules/inventory/pages/InventoryCount";
@@ -56,9 +66,10 @@ const App = () => (
         <AuthProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/admin/auth" element={<Login isAdminEntry={true} />} />
               <Route path="/" element={<Navigate to="/login" replace />} />
 
               {/* Protected Routes */}
@@ -117,11 +128,6 @@ const App = () => (
                 } />
 
                 {/* Admin / Settings */}
-                <Route path="/users" element={
-                  <ProtectedRoute module="users" action="view">
-                    <UserManagement />
-                  </ProtectedRoute>
-                } />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/settings" element={
                   <FeatureGate flag="module.settings">
@@ -130,6 +136,11 @@ const App = () => (
                 }>
                   <Route index element={<Navigate to="general" replace />} />
                   <Route path="general" element={<GeneralSettings />} />
+                  <Route path="users" element={
+                    <ProtectedRoute module="users" action="view">
+                      <UserManagement />
+                    </ProtectedRoute>
+                  } />
                   <Route path="business" element={<BusinessSettings />} />
                   <Route path="locations" element={<LocationSettings />} />
                   <Route path="glasses" element={<GlassSettings />} />
@@ -148,6 +159,11 @@ const App = () => (
                 <Route path="/super-admin/feature-flags" element={
                   <ProtectedRoute module="super_admin" action="view">
                     <FeatureFlagsAdmin />
+                  </ProtectedRoute>
+                } />
+                <Route path="/super-admin/users" element={
+                  <ProtectedRoute module="users" action="view">
+                    <UserManagement isSuperAdminView={true} />
                   </ProtectedRoute>
                 } />
 

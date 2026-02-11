@@ -84,10 +84,11 @@ export default function StartInventorisation() {
 
             // Navigate to counting interface
             navigate('/inventory/count')
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const err = error as Error;
             toast({
                 title: 'Error starting inventorisation',
-                description: error.message,
+                description: err.message,
                 variant: 'destructive',
             })
         }

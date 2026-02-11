@@ -36,9 +36,15 @@ export default function CountingInterface() {
     const { user } = useAuthStore();
     const { toast } = useToast();
     const queryClient = useQueryClient();
-
     const [searchTerm, setSearchTerm] = useState("");
-    const [selectedProduct, setSelectedProduct] = useState<any>(null);
+
+    interface SelectedProduct {
+        id: string;
+        name: string;
+        unit: string;
+        sku?: string | null;
+    }
+    const [selectedProduct, setSelectedProduct] = useState<SelectedProduct | null>(null);
     const [showQuantityPopup, setShowQuantityPopup] = useState(false);
 
     // Fetch session - Global Session context
@@ -89,7 +95,7 @@ export default function CountingInterface() {
 
     // Add/update item mutation
     const addItemMutation = useMutation({
-        mutationFn: async ({ productId, quantity, quantityOpened }: any) => {
+        mutationFn: async ({ productId, quantity, quantityOpened }: { productId: string; quantity: number; quantityOpened: number }) => {
             if (!session?.id) throw new Error("No active session");
 
             const { data, error } = await supabase
@@ -140,7 +146,7 @@ export default function CountingInterface() {
         },
     });
 
-    const handleProductSelect = (product: any) => {
+    const handleProductSelect = (product: SelectedProduct) => {
         setSelectedProduct(product);
         setShowQuantityPopup(true);
     };

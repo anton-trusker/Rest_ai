@@ -139,7 +139,7 @@ serve(async (req) => {
         }
 
         // 5. Fetch expected stock from Syrve
-        let expectedStockItems: SyrveExpectedStockItem[] = []
+        const expectedStockItems: SyrveExpectedStockItem[] = []
         let syrveError = null
 
         try {

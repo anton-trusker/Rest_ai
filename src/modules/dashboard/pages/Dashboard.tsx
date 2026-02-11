@@ -10,7 +10,7 @@ import {
 import { Button } from '@/core/ui/button';
 
 function StatCard({ icon: Icon, label, value, sub, color, onClick }: {
-    icon: any; label: string; value: string | number; sub?: string; color?: string; onClick?: () => void;
+    icon: React.ElementType; label: string; value: string | number; sub?: string; color?: string; onClick?: () => void;
 }) {
     return (
         <button onClick={onClick} className="stat-card text-left w-full">
@@ -28,7 +28,7 @@ function StatCard({ icon: Icon, label, value, sub, color, onClick }: {
 }
 
 function MethodBadge({ method }: { method: string }) {
-    const config: Record<string, { label: string; icon: any; cls: string }> = {
+    const config: Record<string, { label: string; icon: React.ElementType; cls: string }> = {
         manual: { label: 'Search', icon: Search, cls: 'bg-secondary text-secondary-foreground' },
         barcode: { label: 'Barcode', icon: Scan, cls: 'bg-primary/15 text-primary' },
         image_ai: { label: 'Image AI', icon: Camera, cls: 'bg-accent/15 text-accent' },

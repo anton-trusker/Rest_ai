@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuthStore, useUserRole } from '@/core/auth/authStore';
+import { useAuthStore, useUserRole, usePermission } from '@/core/auth/authStore';
 import { useFeatureFlags } from '@/core/feature-flags/FeatureFlagProvider';
 import {
     LayoutDashboard, Wine, Package, History, BarChart3, ClipboardCheck,
@@ -81,7 +81,17 @@ export default function AppSidebar() {
     const filterItems = (items: NavItemDef[]) =>
         items.filter(item => {
             // Permission check
-            if (!role || role.permissions[item.module] === 'none') {
+            // Use static check from store or hook logic? 
+            // Better to use the hook's logic but safely.
+            const user = useAuthStore.getState().user;
+            if (!user) return false;
+
+            // Bypass for Super Admin
+            if (user.permissions?.includes('*')) return true;
+
+            // Check specific view permission
+            const hasView = user.permissions?.includes(`${item.module}.view`);
+            if (!hasView && item.module !== 'dashboard') {
                 return false;
             }
             // Feature flag check

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -50,11 +50,23 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess }: CreateUserDi
     const [roles, setRoles] = useState<{ id: string, name: string, display_name: string }[]>([]);
 
     // Load roles on mount
-    useState(() => {
-        supabase.from('roles').select('*').then(({ data }) => {
-            if (data) setRoles(data);
-        });
-    });
+    useEffect(() => {
+        const fetchRoles = async () => {
+            const { data } = await supabase.from('roles').select('*').order('hierarchy_level', { ascending: false });
+            if (data) {
+                const currentUser = useAuthStore.getState().user;
+                const isSuperAdmin = currentUser?.permissions?.includes('*');
+
+                // If not super admin, filter out super_admin and admin roles
+                if (isSuperAdmin) {
+                    setRoles(data);
+                } else {
+                    setRoles(data.filter(r => !['super_admin', 'admin'].includes(r.name)));
+                }
+            }
+        };
+        fetchRoles();
+    }, []);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -80,9 +92,10 @@ export function CreateUserDialog({ open, onOpenChange, onSuccess }: CreateUserDi
             form.reset();
             onSuccess();
             onOpenChange(false);
-        } catch (error: any) {
-            console.error('Failed to create user:', error);
-            toast.error(error.message || 'Failed to create user');
+        } catch (error: unknown) {
+            const err = error as Error;
+            console.error('Failed to create user:', err);
+            toast.error(err.message || 'Failed to create user');
         } finally {
             setIsLoading(false);
         }

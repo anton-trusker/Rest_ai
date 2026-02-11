@@ -241,7 +241,7 @@ export class SyrveClient {
         let current = xml
 
         for (const tag of tags) {
-            const regex = new RegExp(`<${tag}>(.*?)<\/${tag}>`, 's')
+            const regex = new RegExp(`<${tag}>(.*?)</${tag}>`, 's')
             const match = current.match(regex)
             if (!match) return undefined
             current = match[1]
@@ -266,7 +266,7 @@ export class SyrveClient {
 /**
  * Factory function to create Syrve client from database connection
  */
-export async function createSyrveClient(supabase: any): Promise<SyrveClient> {
+export async function createSyrveClient(supabase: { from: (table: string) => { select: (cols: string) => { eq: (col: string, val: unknown) => { single: () => Promise<{ data: unknown; error: unknown }> } } } }): Promise<SyrveClient> {
     const { data: connection, error } = await supabase
         .from('syrve_connections')
         .select('*')

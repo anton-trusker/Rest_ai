@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
             return new Response(JSON.stringify({ error: 'Failed to fetch roles' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
         }
 
-        const hasAdminAccess = callerRoles.some((ur: any) =>
+        const hasAdminAccess = callerRoles.some((ur: { roles: { name: string; hierarchy_level: number } }) =>
             ['super_admin', 'admin'].includes(ur.roles.name)
         )
 

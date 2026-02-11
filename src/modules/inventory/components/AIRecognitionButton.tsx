@@ -22,6 +22,13 @@ import { Alert, AlertDescription } from '@/core/ui/alert'
 import { useToast } from '@/core/ui/use-toast'
 import { useAIRecognition, useAIConfig, compressImage, type AIMatch } from '../hooks/useAIRecognition'
 
+interface ExtractedData {
+    product_name?: string;
+    brand?: string;
+    category?: string;
+    sku?: string;
+}
+
 interface AIRecognitionButtonProps {
     onProductMatched: (productId: string, productName: string) => void
     sessionId?: string
@@ -42,7 +49,7 @@ export function AIRecognitionButton({
 
     const [showMatches, setShowMatches] = useState(false)
     const [matches, setMatches] = useState<AIMatch[]>([])
-    const [extractedData, setExtractedData] = useState<any>(null)
+    const [extractedData, setExtractedData] = useState<ExtractedData | null>(null)
 
     const handleImageCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -85,11 +92,12 @@ export function AIRecognitionButton({
                     variant: 'destructive',
                 })
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const err = error as Error;
             console.error('AI recognition error:', error)
             toast({
                 title: 'Recognition failed',
-                description: error.message || 'Failed to process image',
+                description: err.message || 'Failed to process image',
                 variant: 'destructive',
             })
         }
