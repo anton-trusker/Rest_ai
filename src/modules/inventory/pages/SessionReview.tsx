@@ -1,183 +1,212 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import { useSessionStore } from '@/core/lib/sessionStore';
-import { useAuthStore } from '@/core/auth/authStore';
-import { useColumnStore } from '@/core/settings/columnStore';
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/core/lib/supabase/client";
+import { useAuthStore } from "@/core/auth/authStore";
+import { Button } from "@/core/ui/button";
 import {
-    CheckCircle2, AlertTriangle, Clock, ChevronRight, Check, X, Eye
-} from 'lucide-react';
-import { Button } from '@/core/ui/button';
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/core/ui/card";
 import {
-    Card, CardHeader, CardTitle, CardContent, CardFooter
-} from '@/core/ui/card';
-import DataTable, { DataTableColumn } from '@/core/ui/DataTable';
-import { InventorySession, InventoryItem } from '@/core/lib/mockData';
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/core/ui/table";
+import { Badge } from "@/core/ui/badge";
+import { useToast } from "@/core/ui/use-toast";
+import { ArrowLeft, CheckCircle, XCircle, Send } from "lucide-react";
 
 export default function SessionReview() {
+    const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { user } = useAuthStore();
-    const { sessions, getSessionStatusColor, approveSession, getFormattedItems } = useSessionStore();
-    const { columnWidths, setColumnWidth } = useColumnStore();
+    const { toast } = useToast();
+    const queryClient = useQueryClient();
 
-    const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+    // Fetch session
+    const { data: session } = useQuery({
+        queryKey: ['inventory-session', id],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('inventory_sessions')
+                .select('*, locations(name)')
+                .eq('id', id)
+                .single();
 
-    const selectedSession = useMemo(() =>
-        sessions.find(s => s.id === selectedSessionId),
-        [sessions, selectedSessionId]);
-
-    const sessionItems = useMemo(() =>
-        selectedSessionId ? getFormattedItems(selectedSessionId) : [],
-        [selectedSessionId, getFormattedItems]);
-
-    const handleApprove = () => {
-        if (selectedSessionId && user) {
-            approveSession(selectedSessionId, user.id);
-            toast.success('Session Approved', { description: 'Inventory levels have been updated.' });
-        }
-    };
-
-    const itemsColumns: DataTableColumn<InventoryItem>[] = [
-        { key: 'wine', label: 'Wine', minWidth: 200, render: i => i.wineName },
-        {
-            key: 'expected', label: 'Expected', minWidth: 100, align: 'right',
-            render: i => <span className="text-muted-foreground">{i.expectedUnopened}</span>
+            if (error) throw error;
+            return data;
         },
-        {
-            key: 'counted', label: 'Counted', minWidth: 100, align: 'right',
-            render: i => <span className="font-bold">{i.countedUnopened}</span>
+        enabled: !!id,
+    });
+
+    // Fetch items
+    const { data: items } = useQuery({
+        queryKey: ['inventory-items', id],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('inventory_items')
+                .select('*, products(name, unit, purchase_price)')
+                .eq('session_id', id);
+
+            if (error) throw error;
+            return data;
         },
-        {
-            key: 'variance', label: 'Variance', minWidth: 100, align: 'right',
-            render: i => {
-                if (i.varianceUnopened === 0) return <span className="text-muted-foreground">-</span>;
-                const isPos = i.varianceUnopened > 0;
-                return (
-                    <span className={`font-bold ${isPos ? 'text-wine-success' : 'text-destructive'}`}>
-                        {isPos ? '+' : ''}{i.varianceUnopened}
-                    </span>
-                );
-            }
+        enabled: !!id,
+    });
+
+    // Approve session
+    const approveMutation = useMutation({
+        mutationFn: async () => {
+            const { error } = await supabase
+                .from('inventory_sessions')
+                .update({
+                    status: 'approved',
+                    approved_by: user?.id,
+                    approved_at: new Date().toISOString()
+                })
+                .eq('id', id);
+
+            if (error) throw error;
         },
-        {
-            key: 'action', label: 'Action', minWidth: 100, align: 'center',
-            render: i => (
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full">
-                    <Eye className="w-3.5 h-3.5 text-muted-foreground" />
-                </Button>
-            )
-        }
-    ];
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['inventory-session', id] });
+            toast({
+                title: "Session approved",
+                description: "Stock levels have been updated",
+            });
+        },
+    });
 
-    if (selectedSession) {
-        return (
-            <div className="h-[calc(100vh-6rem)] flex flex-col animate-fade-in space-y-4">
-                {/* Header */}
-                <div className="flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-4">
-                        <Button variant="outline" size="icon" onClick={() => setSelectedSessionId(null)}>
-                            <ChevronRight className="w-4 h-4 rotate-180" />
-                        </Button>
-                        <div>
-                            <h1 className="text-2xl font-heading font-bold">{selectedSession.sessionName}</h1>
-                            <div className="flex items-center gap-2 mt-1">
-                                <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold border ${getSessionStatusColor(selectedSession.status)}`}>
-                                    {selectedSession.status}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                    {new Date(selectedSession.startedAt).toLocaleDateString()}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {selectedSession.status === 'completed' && (
-                        <div className="flex gap-2">
-                            <Button variant="destructive" className="bg-destructive/10 text-destructive hover:bg-destructive/20 border-destructive/20 border">
-                                <X className="w-4 h-4 mr-2" /> Reject
-                            </Button>
-                            <Button className="wine-gradient" onClick={handleApprove}>
-                                <Check className="w-4 h-4 mr-2" /> Approve
-                            </Button>
-                        </div>
-                    )}
-                </div>
-
-                {/* Breakdown */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
-                    <Card>
-                        <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Accuracy</CardTitle></CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">98.5%</div>
-                            <p className="text-xs text-muted-foreground">Based on variance</p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Variance</CardTitle></CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-destructive">-3</div>
-                            <p className="text-xs text-muted-foreground">Bottles missing</p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Duration</CardTitle></CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{Math.round((selectedSession.duration || 0) / 60)} min</div>
-                            <p className="text-xs text-muted-foreground">Avg. 12 sec / item</p>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Items Table */}
-                <div className="flex-1 bg-card border border-border rounded-xl shadow-sm overflow-hidden flex flex-col">
-                    <DataTable
-                        data={sessionItems}
-                        columns={itemsColumns}
-                        visibleColumns={['wine', 'expected', 'counted', 'variance', 'action']}
-                        columnWidths={columnWidths}
-                        onColumnResize={setColumnWidth}
-                        keyExtractor={i => i.id}
-                    />
-                </div>
-            </div>
-        );
-    }
+    const totalItems = items?.length || 0;
+    const totalValue = items?.reduce((sum, item) => {
+        const price = item.products?.purchase_price || 0;
+        return sum + (price * (item.quantity + item.quantity_opened));
+    }, 0) || 0;
 
     return (
-        <div className="space-y-6 animate-fade-in">
-            <div>
-                <h1 className="text-3xl font-heading font-bold">Session Review</h1>
-                <p className="text-muted-foreground mt-1">Approve pending inventory counts</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {sessions.map(session => (
-                    <div
-                        key={session.id}
-                        onClick={() => setSelectedSessionId(session.id)}
-                        className="group wine-glass-effect p-6 rounded-2xl cursor-pointer hover:border-primary/50 transition-all hover:-translate-y-1"
-                    >
-                        <div className="flex justify-between items-start mb-4">
-                            <div className={`p-3 rounded-xl ${session.status === 'completed' ? 'bg-blue-500/10 text-blue-500' : 'bg-secondary text-muted-foreground'}`}>
-                                <Clock className="w-6 h-6" />
-                            </div>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold border ${getSessionStatusColor(session.status)}`}>
-                                {session.status}
-                            </span>
-                        </div>
-
-                        <h3 className="font-heading font-bold text-lg mb-1 group-hover:text-primary transition-colors">{session.sessionName}</h3>
-                        <p className="text-sm text-muted-foreground mb-4">
-                            by {session.createdByName} · {new Date(session.startedAt).toLocaleDateString()}
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="icon" onClick={() => navigate('/inventory')}>
+                        <ArrowLeft className="h-5 w-5" />
+                    </Button>
+                    <div>
+                        <h1 className="text-2xl font-bold">Session Review</h1>
+                        <p className="text-sm text-muted-foreground">
+                            {session?.locations?.name} • {new Date(session?.started_at || '').toLocaleDateString()}
                         </p>
-
-                        <div className="flex items-center justify-between text-sm py-3 border-t border-border/50">
-                            <span className="text-muted-foreground">Items Counted</span>
-                            <span className="font-mono font-bold">{session.totalWinesCounted}/{session.totalWinesExpected}</span>
-                        </div>
                     </div>
-                ))}
+                </div>
+                <Badge variant={session?.status === 'approved' ? 'default' : 'outline'}>
+                    {session?.status}
+                </Badge>
             </div>
+
+            {/* Summary Cards */}
+            <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardDescription>Total Items</CardDescription>
+                        <CardTitle className="text-3xl">{totalItems}</CardTitle>
+                    </CardHeader>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardDescription>Estimated Value</CardDescription>
+                        <CardTitle className="text-3xl">${totalValue.toFixed(2)}</CardTitle>
+                    </CardHeader>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardDescription>Session Type</CardDescription>
+                        <CardTitle className="text-3xl capitalize">{session?.session_type}</CardTitle>
+                    </CardHeader>
+                </Card>
+            </div>
+
+            {/* Items Table */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Counted Items</CardTitle>
+                    <CardDescription>
+                        Review all items before approving
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead className="text-right">Full</TableHead>
+                                <TableHead className="text-right">Opened</TableHead>
+                                <TableHead className="text-right">Total</TableHead>
+                                <TableHead className="text-right">Value</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {items?.map((item) => (
+                                <TableRow key={item.id}>
+                                    <TableCell className="font-medium">{item.products?.name}</TableCell>
+                                    <TableCell className="text-right">{item.quantity}</TableCell>
+                                    <TableCell className="text-right">
+                                        {item.quantity_opened > 0 ? item.quantity_opened : '—'}
+                                    </TableCell>
+                                    <TableCell className="text-right font-semibold">
+                                        {item.quantity + item.quantity_opened} {item.products?.unit}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        ${((item.products?.purchase_price || 0) * (item.quantity + item.quantity_opened)).toFixed(2)}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+
+            {/* Actions */}
+            {session?.status === 'completed' && (
+                <Card>
+                    <CardContent className="flex gap-3 p-6">
+                        <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => navigate(`/inventory/session/${id}`)}
+                        >
+                            <XCircle className="mr-2 h-4 w-4" />
+                            Back to Counting
+                        </Button>
+                        <Button
+                            className="flex-1"
+                            onClick={() => approveMutation.mutate()}
+                        >
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                            Approve & Update Stock
+                        </Button>
+                    </CardContent>
+                </Card>
+            )}
+
+            {session?.status === 'approved' && (
+                <Card>
+                    <CardContent className="flex gap-3 p-6">
+                        <Button
+                            className="flex-1"
+                            onClick={() => toast({ title: "Coming in Phase 5", description: "Syrve integration" })}
+                        >
+                            <Send className="mr-2 h-4 w-4" />
+                            Send to Syrve
+                        </Button>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }

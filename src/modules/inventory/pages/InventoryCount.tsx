@@ -1,170 +1,179 @@
-import { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import { Wine, mockWines } from '@/core/lib/mockData';
-import CountSetup from '../components/CountSetup';
-import CameraScanner from '../components/CameraScanner';
-import ScanProgressDialog from '../components/ScanProgressDialog';
-import ManualSearchSheet from '../components/ManualSearchSheet';
-import QuantityPopup from '../components/QuantityPopup';
-import SessionSummary from '../components/SessionSummary';
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/core/lib/supabase/client";
+import { useAuthStore } from "@/core/auth/authStore";
+import { Button } from "@/core/ui/button";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/core/ui/card";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/core/ui/table";
+import { Badge } from "@/core/ui/badge";
+import { Link } from "react-router-dom";
+import { Plus, Clock, CheckCircle2 } from "lucide-react";
 
-type Step = 'setup' | 'counting' | 'summary';
+interface Session {
+    id: string;
+    session_type: string;
+    status: string;
+    started_at: string;
+    completed_at: string | null;
+    location_id: string | null;
+    locations?: {
+        name: string;
+    };
+}
 
 export default function InventoryCount() {
-    const navigate = useNavigate();
-    const [step, setStep] = useState<Step>('setup');
+    const { user } = useAuthStore();
 
-    // Scanner State
-    const [isCameraActive, setIsCameraActive] = useState(false);
-    const [showScanProgress, setShowScanProgress] = useState(false);
-    const [scanMode, setScanMode] = useState<'barcode' | 'image'>('barcode');
+    const { data: sessions, isLoading } = useQuery({
+        queryKey: ['inventory-sessions'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('inventory_sessions')
+                .select(`
+                    *,
+                    locations(name)
+                `)
+                .order('started_at', { ascending: false })
+                .limit(20);
 
-    // Manual Search State
-    const [showManualSearch, setShowManualSearch] = useState(false);
+            if (error) throw error;
+            return data as Session[];
+        },
+    });
 
-    // Current Item State (for quantity popup)
-    const [scannedWine, setScannedWine] = useState<Wine | null>(null);
-    const [showQuantityPopup, setShowQuantityPopup] = useState(false);
+    const activeSessions = sessions?.filter(s => s.status === 'draft' || s.status === 'in_progress');
+    const recentSessions = sessions?.filter(s => s.status === 'completed' || s.status === 'approved');
 
-    // Session State
-    const [sessionData, setSessionData] = useState<{
-        id: string;
-        itemsCounted: number;
-        startTime: string;
-    } | null>(null);
-
-    const startSession = () => {
-        setSessionData({
-            id: `S-${Date.now()}`,
-            itemsCounted: 0,
-            startTime: new Date().toISOString()
-        });
-        setStep('counting'); // Immediately go to camera in a real app, but for now we might want a dashboard?
-        // Let's assume we want to start scanning immediately
-        setIsCameraActive(true);
+    const getStatusBadge = (status: string) => {
+        const variants: Record<string, any> = {
+            'draft': 'outline',
+            'in_progress': 'default',
+            'completed': 'secondary',
+            'approved': 'default',
+        };
+        return <Badge variant={variants[status] || 'outline'}>{status.replace('_', ' ')}</Badge>;
     };
-
-    const handleScanDetected = useCallback((code: string) => {
-        setIsCameraActive(false); // Pause camera
-        setScanMode('barcode');
-        setShowScanProgress(true);
-
-        // Simulate lookup
-        setTimeout(() => {
-            // Find a mock wine (e.g. first one) for demo
-            const found = mockWines.find(w => w.barcode === code) || mockWines[0];
-            setScannedWine(found);
-            // Let the dialog show "Found" state
-        }, 1500);
-    }, []);
-
-    const handleManualSelect = (wine: Wine) => {
-        setShowManualSearch(false);
-        setScannedWine(wine);
-        setShowQuantityPopup(true);
-    };
-
-    const confirmQuantity = (unopened: number, opened: number, notes?: string, location?: string) => {
-        // Save item logic would go here
-        if (sessionData) {
-            setSessionData({
-                ...sessionData,
-                itemsCounted: sessionData.itemsCounted + 1
-            });
-        }
-        toast.success('Count recorded', { description: `${scannedWine?.name}` });
-
-        // Resume scanning
-        setIsCameraActive(true);
-    };
-
-    if (step === 'setup') {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[calc(100vh-6rem)] p-4">
-                <CountSetup onStart={startSession} />
-            </div>
-        );
-    }
-
-    if (step === 'summary') {
-        return (
-            <SessionSummary
-                session={{
-                    id: sessionData?.id || '',
-                    sessionName: 'New Session',
-                    sessionType: 'full',
-                    status: 'completed',
-                    totalWinesExpected: 10,
-                    totalWinesCounted: sessionData?.itemsCounted || 0,
-                    startedAt: sessionData?.startTime || '',
-                    completedAt: new Date().toISOString(),
-                    duration: 300,
-                    createdBy: '1',
-                    createdByName: 'User'
-                }}
-                count={sessionData?.itemsCounted || 0}
-            />
-        );
-    }
 
     return (
-        <div className="flex flex-col h-full">
-            <CameraScanner
-                active={isCameraActive}
-                onScan={handleScanDetected}
-                onClose={() => {
-                    setIsCameraActive(false);
-                    navigate('/inventory'); // Go back if cancelled
-                }}
-            />
-
-            {/* Fallback/Manual Options if camera is closed but we are in counting mode? 
-          Actually CameraScanner takes full screen. If closed, we likely cancel session or pause.
-          For this demo, let's say closing camera goes to summary or manual menu.
-      */}
-            {!isCameraActive && (
-                <div className="flex flex-col items-center justify-center h-[calc(100vh-6rem)] gap-4">
-                    <Button onClick={() => setIsCameraActive(true)} size="lg">Resume Scanning</Button>
-                    <Button variant="secondary" onClick={() => setShowManualSearch(true)}>Manual Search</Button>
-                    <Button variant="outline" onClick={() => setStep('summary')}>Finish Session</Button>
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Inventory Counting</h1>
+                    <p className="text-muted-foreground">
+                        Manage counting sessions
+                    </p>
                 </div>
+                <Button asChild size="lg">
+                    <Link to="/inventory/new">
+                        <Plus className="mr-2 h-4 w-4" />
+                        New Count
+                    </Link>
+                </Button>
+            </div>
+
+            {/* Active Sessions */}
+            {activeSessions && activeSessions.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Clock className="h-5 w-5" />
+                            Active Sessions
+                        </CardTitle>
+                        <CardDescription>
+                            Continue counting or complete these sessions
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-3">
+                            {activeSessions.map((session) => (
+                                <Link
+                                    key={session.id}
+                                    to={`/inventory/session/${session.id}`}
+                                    className="block"
+                                >
+                                    <div className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors">
+                                        <div>
+                                            <p className="font-medium capitalize">{session.session_type} Count</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                {session.locations?.name || 'All Locations'} • Started {new Date(session.started_at).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            {getStatusBadge(session.status)}
+                                            <Button variant="ghost" size="sm">
+                                                Continue →
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
             )}
 
-            {/* Overlays */}
-            <ScanProgressDialog
-                open={showScanProgress}
-                onOpenChange={(open) => {
-                    setShowScanProgress(open);
-                    if (!open) setIsCameraActive(true); // Resume if closed without confirm
-                }}
-                mode={scanMode}
-                wineName={scannedWine?.name}
-                onConfirm={() => {
-                    setShowScanProgress(false);
-                    setShowQuantityPopup(true);
-                }}
-                onCreateNew={() => {
-                    setShowScanProgress(false);
-                    toast.info("Create new wine flow");
-                }}
-            />
-
-            <QuantityPopup
-                wine={scannedWine}
-                isOpen={showQuantityPopup}
-                onClose={() => {
-                    setShowQuantityPopup(false);
-                    setIsCameraActive(true); // Resume on close
-                }}
-                onConfirm={confirmQuantity}
-            />
-
-            <ManualSearchSheet
-                open={showManualSearch}
-                onOpenChange={setShowManualSearch}
-                onSelect={handleManualSelect}
-            />
+            {/* Recent Sessions */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <CheckCircle2 className="h-5 w-5" />
+                        Recent Sessions
+                    </CardTitle>
+                    <CardDescription>
+                        Previously completed counts
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? (
+                        <p className="text-center py-8 text-muted-foreground">Loading sessions...</p>
+                    ) : !recentSessions || recentSessions.length === 0 ? (
+                        <p className="text-center py-8 text-muted-foreground">
+                            No completed sessions yet. Start your first count!
+                        </p>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Type</TableHead>
+                                    <TableHead>Location</TableHead>
+                                    <TableHead>Started</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {recentSessions.map((session) => (
+                                    <TableRow key={session.id}>
+                                        <TableCell className="capitalize">{session.session_type}</TableCell>
+                                        <TableCell>{session.locations?.name || '—'}</TableCell>
+                                        <TableCell>{new Date(session.started_at).toLocaleDateString()}</TableCell>
+                                        <TableCell>{getStatusBadge(session.status)}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="sm" asChild>
+                                                <Link to={`/inventory/session/${session.id}`}>
+                                                    View
+                                                </Link>
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 }

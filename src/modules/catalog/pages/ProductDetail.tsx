@@ -1,210 +1,197 @@
-import { useNavigate, useParams } from 'react-router-dom';
-import { mockWines } from '@/core/lib/mockData';
-import { useAuthStore } from '@/core/auth/authStore';
+import { useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/core/lib/supabase/client";
 import {
-    ArrowLeft, Edit, Trash2, MapPin, Tag, Calendar,
-    Droplets, DollarSign, BarChart3, Clock, Grape, FileText,
-    Wine as WineIcon, ImageOff
-} from 'lucide-react';
-import { Button } from '@/core/ui/button';
-import { toast } from 'sonner';
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/core/ui/card";
+import { Badge } from "@/core/ui/badge";
+import { Separator } from "@/core/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/core/ui/tabs";
+
+interface Product {
+    id: string;
+    syrve_id: string | null;
+    name: string;
+    sku: string | null;
+    code: string | null;
+    unit: string;
+    unit_capacity: number | null;
+    purchase_price: number | null;
+    description: string | null;
+    image_url: string | null;
+    par_level: number | null;
+    is_countable: boolean;
+    metadata: any;
+    syrve_data: any;
+    synced_at: string | null;
+    created_at: string;
+}
 
 export default function ProductDetail() {
-    const { id } = useParams();
-    const navigate = useNavigate();
-    const { user } = useAuthStore();
+    const { id } = useParams<{ id: string }>();
 
-    const wine = mockWines.find(w => w.id === id);
+    const { data: product, isLoading } = useQuery({
+        queryKey: ['product', id],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('products')
+                .select('*')
+                .eq('id', id)
+                .single();
 
-    if (!wine) {
-        return (
-            <div className="flex flex-col items-center justify-center h-[60vh]">
-                <h2 className="text-2xl font-bold mb-2">Wine Not Found</h2>
-                <Button variant="outline" onClick={() => navigate('/catalog')}>Return to Catalog</Button>
-            </div>
-        );
+            if (error) throw error;
+            return data as Product;
+        },
+        enabled: !!id,
+    });
+
+    if (isLoading) {
+        return <div className="p-8">Loading product...</div>;
     }
 
-    const handleDelete = () => {
-        toast.error('Delete functionality restricted in demo');
-    };
+    if (!product) {
+        return <div className="p-8">Product not found</div>;
+    }
 
     return (
-        <div className="max-w-5xl mx-auto pb-10 animate-fade-in">
-            {/* Header */}
-            <div className="mb-6 flex items-start justify-between">
-                <Button variant="ghost" className="pl-0 hover:bg-transparent hover:text-primary" onClick={() => navigate('/catalog')}>
-                    <ArrowLeft className="w-4 h-4 mr-2" /> Back to Catalog
-                </Button>
-                <div className="flex gap-2">
-                    <Button variant="outline" className="border-destructive/50 text-destructive hover:bg-destructive/10" onClick={handleDelete}>
-                        <Trash2 className="w-4 h-4 mr-2" /> Delete
-                    </Button>
-                    <Button className="wine-gradient text-primary-foreground" onClick={() => navigate(`/catalog/${id}/edit`)}>
-                        <Edit className="w-4 h-4 mr-2" /> Edit Wine
-                    </Button>
+        <div className="space-y-6">
+            <div className="flex items-start justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">{product.name}</h1>
+                    <p className="text-muted-foreground mt-2">
+                        SKU: {product.sku || 'N/A'} • Code: {product.code || 'N/A'}
+                    </p>
                 </div>
+                <Badge variant={product.is_countable ? "default" : "secondary"}>
+                    {product.is_countable ? "Active" : "Inactive"}
+                </Badge>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-8">
-                {/* Left Column: Image & Quick Stats */}
-                <div className="space-y-6">
-                    <div className="aspect-[3/4] rounded-2xl bg-secondary/30 border border-border flex items-center justify-center overflow-hidden shadow-sm relative group">
-                        {wine.hasImage ? (
-                            <div className="w-full h-full flex items-center justify-center bg-muted/20">
-                                <WineIcon className="w-24 h-24 text-muted-foreground/20" />
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center text-muted-foreground/40">
-                                <ImageOff className="w-16 h-16 mb-2" />
-                                <span className="text-sm">No Image</span>
-                            </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <Button variant="secondary" size="sm">Change Image</Button>
-                        </div>
-                    </div>
+            <Tabs defaultValue="info" className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="info">Information</TabsTrigger>
+                    <TabsTrigger value="syrve">Syrve Data</TabsTrigger>
+                    <TabsTrigger value="history">History</TabsTrigger>
+                </TabsList>
 
-                    <div className="wine-glass-effect rounded-xl p-5 space-y-4">
-                        <h3 className="font-heading font-semibold text-lg border-b border-border/50 pb-2">Stock Summary</h3>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-secondary/50 rounded-lg p-3 text-center">
-                                <span className="text-2xl font-bold block">{wine.stockUnopened}</span>
-                                <span className="text-xs text-muted-foreground uppercase tracking-wide">Unopened</span>
-                            </div>
-                            <div className="bg-secondary/50 rounded-lg p-3 text-center">
-                                <span className="text-2xl font-bold block">{wine.stockOpened}</span>
-                                <span className="text-xs text-muted-foreground uppercase tracking-wide">Opened</span>
-                            </div>
-                        </div>
-
-                        <div className="space-y-2 pt-2">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Min Level</span>
-                                <span className="font-medium">{wine.minStockLevel}</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Max Level</span>
-                                <span className="font-medium">{wine.maxStockLevel || '-'}</span>
-                            </div>
-                            <div className="flex justify-between text-sm pt-2 border-t border-border/50">
-                                <span className="text-muted-foreground">Status</span>
-                                <span className={`font-bold capitalize ${wine.stockStatus === 'in_stock' ? 'text-wine-success' :
-                                        wine.stockStatus === 'low_stock' ? 'text-wine-warning' : 'text-destructive'
-                                    }`}>{wine.stockStatus?.replace('_', ' ')}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Right Column: Details */}
-                <div className="space-y-8">
-                    <div>
-                        <div className="flex items-center gap-3 mb-2">
-                            <span className="px-2.5 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-bold uppercase tracking-wider">
-                                {wine.type}
-                            </span>
-                            {wine.vintage && (
-                                <span className="px-2.5 py-0.5 rounded-full bg-secondary border border-border text-xs font-medium">
-                                    {wine.vintage}
-                                </span>
-                            )}
-                        </div>
-                        <h1 className="text-4xl font-heading font-bold mb-2">{wine.name}</h1>
-                        <p className="text-xl text-muted-foreground font-light">{wine.producer}</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-6">
-                            <div className="space-y-1">
-                                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">Origin</h3>
-                                <div className="space-y-2">
-                                    <div className="flex items-center gap-3 text-sm">
-                                        <MapPin className="w-4 h-4 text-muted-foreground" />
-                                        <span>{wine.region}, {wine.country}</span>
-                                    </div>
-                                    {wine.subRegion && <div className="pl-7 text-sm text-muted-foreground">{wine.subRegion}</div>}
-                                    {wine.appellation && <div className="pl-7 text-sm text-muted-foreground italic">{wine.appellation}</div>}
+                <TabsContent value="info" className="space-y-4">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Product Details</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-sm font-medium text-muted-foreground">Unit</p>
+                                    <p className="text-base capitalize">{product.unit}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-muted-foreground">Unit Capacity</p>
+                                    <p className="text-base">{product.unit_capacity || '—'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-muted-foreground">Purchase Price</p>
+                                    <p className="text-base">
+                                        {product.purchase_price ? `$${product.purchase_price.toFixed(2)}` : '—'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-muted-foreground">Par Level</p>
+                                    <p className="text-base">{product.par_level || '—'}</p>
                                 </div>
                             </div>
 
-                            <div className="space-y-1">
-                                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">Details</h3>
-                                <div className="space-y-2">
-                                    <div className="flex items-center gap-3 text-sm">
-                                        <Grape className="w-4 h-4 text-muted-foreground" />
-                                        <span>{wine.grapeVarieties.join(', ')}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-sm">
-                                        <Droplets className="w-4 h-4 text-muted-foreground" />
-                                        <span>{wine.volume}ml · {wine.abv}% ABV</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-sm">
-                                        <Tag className="w-4 h-4 text-muted-foreground" />
-                                        <span>SKU: {wine.sku}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-6">
-                            <div className="space-y-1">
-                                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">Pricing</h3>
-                                <div className="space-y-2 bg-secondary/20 p-4 rounded-xl border border-border">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm text-muted-foreground">Purchase Price</span>
-                                        <span className="font-mono">{wine.purchasePrice ? `$${wine.purchasePrice.toFixed(2)}` : '-'}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-lg font-semibold">
-                                        <span className="text-sm font-normal text-muted-foreground">Sale Price</span>
-                                        <span className="font-mono text-primary">${wine.price.toFixed(2)}</span>
-                                    </div>
-                                    {wine.glassPrice && (
-                                        <div className="flex justify-between items-center pt-2 border-t border-border/50">
-                                            <span className="text-sm text-muted-foreground">Glass Price</span>
-                                            <span className="font-mono">${wine.glassPrice.toFixed(2)}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="space-y-1">
-                                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">Location</h3>
-                                <div className="flex items-center gap-3 text-sm p-3 bg-secondary/30 rounded-lg border border-border">
-                                    <MapPin className="w-4 h-4 text-accent" />
+                            {product.description && (
+                                <>
+                                    <Separator />
                                     <div>
-                                        <span className="font-medium block">{wine.location}</span>
-                                        <span className="text-xs text-muted-foreground">
-                                            {wine.cellarSection} · Rack {wine.rackNumber}
-                                        </span>
+                                        <p className="text-sm font-medium text-muted-foreground mb-2">Description</p>
+                                        <p className="text-base">{product.description}</p>
                                     </div>
+                                </>
+                            )}
+
+                            {product.metadata && Object.keys(product.metadata).length > 0 && (
+                                <>
+                                    <Separator />
+                                    <div>
+                                        <p className="text-sm font-medium text-muted-foreground mb-2">Additional Info</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {Object.entries(product.metadata).map(([key, value]) => (
+                                                <div key={key}>
+                                                    <span className="text-sm text-muted-foreground capitalize">
+                                                        {key.replace(/_/g, ' ')}:
+                                                    </span>
+                                                    <span className="text-sm ml-2">{String(value)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="syrve" className="space-y-4">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Syrve Synchronization</CardTitle>
+                            <CardDescription>
+                                Data synced from Syrve (iiko) system
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-sm font-medium text-muted-foreground">Syrve ID</p>
+                                    <p className="text-base font-mono text-xs">{product.syrve_id || '—'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-muted-foreground">Last Synced</p>
+                                    <p className="text-base">
+                                        {product.synced_at
+                                            ? new Date(product.synced_at).toLocaleString()
+                                            : 'Never'}
+                                    </p>
                                 </div>
                             </div>
-                        </div>
-                    </div>
 
-                    <div className="border-t border-border pt-6">
-                        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">Tasting Notes</h3>
-                        <p className="text-sm leading-relaxed text-foreground/80 italic">
-                            "{wine.tastingNotes || 'No tasting notes available.'}"
-                        </p>
-                        <div className="flex gap-4 mt-4">
-                            {['Body', 'Sweetness', 'Acidity', 'Tannins'].map(trait => {
-                                const key = trait.toLowerCase() as keyof typeof wine;
-                                const val = wine[key];
-                                if (!val || typeof val !== 'string') return null;
-                                return (
-                                    <div key={trait} className="bg-secondary/40 px-3 py-1.5 rounded-md border border-border">
-                                        <span className="block text-[10px] text-muted-foreground uppercase">{trait}</span>
-                                        <span className="text-xs font-medium capitalize">{val}</span>
+                            {product.syrve_data && Object.keys(product.syrve_data).length > 0 && (
+                                <>
+                                    <Separator />
+                                    <div>
+                                        <p className="text-sm font-medium text-muted-foreground mb-2">Raw Syrve Data</p>
+                                        <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto max-h-96">
+                                            {JSON.stringify(product.syrve_data, null, 2)}
+                                        </pre>
                                     </div>
-                                )
-                            })}
-                        </div>
-                    </div>
-                </div>
-            </div>
+                                </>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="history" className="space-y-4">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Inventory History</CardTitle>
+                            <CardDescription>
+                                Recent counting and stock movements
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-muted-foreground">
+                                No history available yet. Inventory tracking will be implemented in Phase 4.
+                            </p>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }

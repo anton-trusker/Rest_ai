@@ -18,6 +18,8 @@ import ProductDetail from "@/modules/catalog/pages/ProductDetail";
 import ProductForm from "@/modules/catalog/pages/ProductForm";
 import ImportInventory from "@/modules/catalog/pages/ImportInventory";
 import InventoryCount from "@/modules/inventory/pages/InventoryCount";
+import SessionSetup from "@/modules/inventory/pages/SessionSetup";
+import CountingInterface from "@/modules/inventory/pages/CountingInterface";
 import CurrentStock from "@/modules/inventory/pages/CurrentStock";
 import InventoryHistory from "@/modules/inventory/pages/InventoryHistory";
 import SessionReview from "@/modules/inventory/pages/SessionReview";
