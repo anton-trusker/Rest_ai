@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { useSettingsStore } from '@/stores/settingsStore';
-import { useHasPermission } from '@/stores/authStore';
+import { useSettingsStore } from '@/core/settings/settingsStore';
+import { useHasPermission } from '@/core/auth/authStore';
 import { Navigate, Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Shield, ChevronDown, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/core/ui/button';
+import { Input } from '@/core/ui/input';
+import { Label } from '@/core/ui/label';
 import { toast } from 'sonner';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/core/ui/collapsible';
 import {
   ALL_MODULES,
   ALL_PERMISSION_LEVELS,
