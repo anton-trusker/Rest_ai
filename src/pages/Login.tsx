@@ -1,22 +1,47 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
-import { ShieldCheck, User, Sparkles } from 'lucide-react';
+import { ShieldCheck, User, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { useState } from 'react';
 import loginHero from '@/assets/login-hero.jpg';
 
 export default function Login() {
   const { login } = useAuthStore();
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-  const handleLogin = (role: 'admin' | 'staff') => {
-    const creds = role === 'admin'
-      ? { email: 'admin@wine.com', password: 'admin123' }
-      : { email: 'staff@wine.com', password: 'staff123' };
-    const success = login(creds.email, creds.password);
-    if (success) {
-      toast.success(`Signed in as ${role}`);
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      toast.error("Please enter both email and password");
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await login(email, password);
+    setLoading(false);
+
+    if (error) {
+      toast.error(error);
+    } else {
+      toast.success("Welcome back!");
       navigate('/dashboard');
+    }
+  };
+
+  // Demo helper to quick-fill
+  const fillDemo = (role: 'admin' | 'staff') => {
+    if (role === 'admin') {
+      setEmail('admin@wine.com');
+      setPassword('admin123');
+    } else {
+      setEmail('staff@wine.com');
+      setPassword('staff123');
     }
   };
 
@@ -42,7 +67,7 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right: Role selection */}
+      {/* Right: Login Form */}
       <div className="flex-1 flex items-center justify-center p-8 bg-background">
         <div className="w-full max-w-sm animate-fade-in">
           <div className="lg:hidden flex items-center gap-3 mb-10">
@@ -53,24 +78,52 @@ export default function Login() {
           </div>
 
           <h2 className="font-heading text-3xl font-bold mb-2">Welcome back</h2>
-          <p className="text-muted-foreground mb-8">Choose your role to continue</p>
+          <p className="text-muted-foreground mb-8">Sign in to your account</p>
 
-          <div className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+
             <Button
-              onClick={() => handleLogin('admin')}
-              className="w-full h-14 wine-gradient text-primary-foreground font-semibold text-base hover:opacity-90 transition-opacity gap-3"
+              type="submit"
+              disabled={loading}
+              className="w-full h-11 wine-gradient text-primary-foreground font-semibold"
             >
-              <ShieldCheck className="w-5 h-5" />
-              Sign in as Admin
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+              Sign in
             </Button>
-            <Button
-              onClick={() => handleLogin('staff')}
-              variant="outline"
-              className="w-full h-14 font-semibold text-base gap-3 border-border"
-            >
-              <User className="w-5 h-5" />
-              Sign in as Staff
-            </Button>
+          </form>
+
+          <div className="mt-8 pt-6 border-t border-border">
+            <p className="text-xs text-muted-foreground text-center mb-4">Demo Credentials</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Button variant="outline" size="sm" onClick={() => fillDemo('admin')}>
+                Admin
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => fillDemo('staff')}>
+                Staff
+              </Button>
+            </div>
           </div>
 
           <p className="text-xs text-muted-foreground text-center mt-10">
