@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react';
 import { useBarcodeScanner } from '@/core/lib/hooks/useBarcodeScanner';
 import { Button } from '@/core/ui/button';
 import { X, Camera, SwitchCamera, Zap, ZapOff } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/core/lib/utils';
 import { toast } from 'sonner';
 
 interface CameraScannerProps {

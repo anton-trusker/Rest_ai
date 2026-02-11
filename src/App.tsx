@@ -11,30 +11,27 @@ import { AuthProvider } from "@/core/auth/AuthProvider";
 import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
 import { FeatureFlagProvider } from "@/core/feature-flags/FeatureFlagProvider";
 import { FeatureGate } from "@/core/feature-flags/FeatureGate";
+import { useFeatureFlags } from "@/core/feature-flags/hooks/useFeatureFlags";
 
+// Core Pages
 import Dashboard from "@/modules/dashboard/pages/Dashboard";
-import ProductCatalog from "@/modules/catalog/pages/ProductCatalog";
+import ProductList from "@/modules/catalog/pages/ProductCatalog";
 import ProductDetail from "@/modules/catalog/pages/ProductDetail";
 import ProductForm from "@/modules/catalog/pages/ProductForm";
 import ImportInventory from "@/modules/catalog/pages/ImportInventory";
+import Settings from "@/modules/settings/pages/Settings";
+import FeatureFlagsSettings from "@/modules/settings/pages/FeatureFlagsSettings";
+import AISettings from "@/modules/settings/pages/AISettings";
+
+// Inventory Pages (Global Session Model)
 import InventoryCount from "@/modules/inventory/pages/InventoryCount";
-import SessionSetup from "@/modules/inventory/pages/SessionSetup";
+import StartInventorisation from "@/modules/inventory/pages/StartInventorisation";
 import CountingInterface from "@/modules/inventory/pages/CountingInterface";
+import ReviewInventorisation from "@/modules/inventory/pages/ReviewInventorisation";
 import CurrentStock from "@/modules/inventory/pages/CurrentStock";
 import InventoryHistory from "@/modules/inventory/pages/InventoryHistory";
-import SessionReview from "@/modules/inventory/pages/SessionReview";
 import UserManagement from "@/modules/users/pages/UserManagement";
 import Reports from "@/modules/reports/pages/Reports";
-import AppSettings from "@/core/settings/pages/AppSettings";
-import GeneralSettings from "@/core/settings/pages/GeneralSettings";
-import BusinessSettings from "@/core/settings/pages/BusinessSettings";
-import LocationSettings from "@/core/settings/pages/LocationSettings";
-import GlassSettings from "@/core/settings/pages/GlassSettings";
-import InventorySettings from "@/core/settings/pages/InventorySettings";
-import SyrveSettings from "@/core/settings/pages/SyrveSettings";
-import AISettings from "@/core/settings/pages/AISettings";
-import BrandingSettings from "@/core/settings/pages/BrandingSettings";
-import FeatureFlagsAdmin from "@/core/settings/pages/FeatureFlagsAdmin";
 import RolesPermissions from "@/modules/users/pages/RolesPermissions";
 import Profile from "@/modules/users/pages/Profile";
 import NotFound from "@/core/ui/pages/NotFound";
@@ -73,7 +70,7 @@ const App = () => (
                 <Route path="/dashboard" element={<Dashboard />} />
 
                 {/* Catalog */}
-                <Route path="/catalog" element={<ProductCatalog />} />
+                <Route path="/catalog" element={<ProductList />} />
                 <Route path="/catalog/new" element={
                   <ProtectedRoute module="catalog" action="create">
                     <ProductForm />
@@ -87,15 +84,37 @@ const App = () => (
                 } />
                 <Route path="/catalog/import" element={<ImportInventory />} />
 
-                {/* Inventory */}
-                <Route path="/count" element={<InventoryCount />} />
-                <Route path="/stock" element={
-                  <ProtectedRoute module="stock" action="view">
-                    <CurrentStock />
-                  </ProtectedRoute>
+                {/* Inventory Routes - Global Session Model */}
+                <Route path="/inventory" element={
+                  <FeatureGate flag="module.inventory">
+                    <InventoryCount />
+                  </FeatureGate>
                 } />
-                <Route path="/history" element={<InventoryHistory />} />
-                <Route path="/sessions" element={<SessionReview />} />
+                <Route path="/inventory/start" element={
+                  <FeatureGate flag="module.inventory">
+                    <StartInventorisation />
+                  </FeatureGate>
+                } />
+                <Route path="/inventory/count" element={
+                  <FeatureGate flag="module.inventory">
+                    <CountingInterface />
+                  </FeatureGate>
+                } />
+                <Route path="/inventory/review" element={
+                  <FeatureGate flag="module.inventory">
+                    <ReviewInventorisation />
+                  </FeatureGate>
+                } />
+                <Route path="/inventory/stock" element={
+                  <FeatureGate flag="module.inventory">
+                    <CurrentStock />
+                  </FeatureGate>
+                } />
+                <Route path="/inventory/history" element={
+                  <FeatureGate flag="module.inventory">
+                    <InventoryHistory />
+                  </FeatureGate>
+                } />
 
                 {/* Admin / Settings */}
                 <Route path="/users" element={

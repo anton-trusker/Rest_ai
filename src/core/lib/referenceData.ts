@@ -385,3 +385,10 @@ export function getAppellationsForRegion(country: string, region: string): strin
     const r = c.regions.find(rr => rr.name === region);
     return r ? r.appellations : [];
 }
+
+// Legacy exports for compatibility with ProductForm
+export const countries = defaultWineRegions.map(r => r.country);
+export const wineRegions: Record<string, string[]> = defaultWineRegions.reduce((acc, curr) => {
+    acc[curr.country] = curr.regions.map(r => r.name);
+    return acc;
+}, {} as Record<string, string[]>);

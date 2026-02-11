@@ -96,75 +96,75 @@ export default function RolesPermissions() {
                                         <DropdownMenuTrigger asChild>
                                             <Button variant="ghost" size="icon">
                                                 <MoreVertical className="w-4 h-4" />
+                                            </Button>
                                         </DropdownMenuTrigger>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuItem disabled={activeRole.isSystem}>
-                                            <Edit2 className="w-4 h-4 mr-2" /> Rename
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem className="text-destructive" disabled={activeRole.isSystem}>
-                                            <Trash2 className="w-4 h-4 mr-2" /> Delete
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
-                        </div>
-
-                    {/* Matrix */}
-                    <div className="divide-y divide-border">
-                        {ALL_MODULES.map(module => (
-                            <div key={module.key} className="p-6 hover:bg-muted/10 transition-colors">
-                                <div className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-12">
-                                    <div className="sm:w-48 shrink-0">
-                                        <h4 className="font-semibold text-foreground mb-1">{module.label}</h4>
-                                        <p className="text-xs text-muted-foreground">Access settings for {module.label.toLowerCase()} module</p>
-                                    </div>
-
-                                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {/* Global View/Edit per module if applicable, or specific sub-actions */}
-                                        {module.subActions.map(action => {
-                                            const pKey = permKey(module.key, action.key);
-                                            const isEnabled = activeRole.permissions.includes(pKey);
-
-                                            // Admin bypass visual
-                                            const isAdmin = activeRole.id === 'role_admin';
-
-                                            return (
-                                                <label key={action.key} className={`flex items-center gap-3 p-2 rounded-lg border transition-all cursor-pointer
-                              ${isEnabled
-                                                        ? 'bg-primary/5 border-primary/20 shadow-sm'
-                                                        : 'bg-transparent border-transparent hover:bg-secondary'
-                                                    }
-                              ${isAdmin ? 'opacity-70 cursor-not-allowed' : ''}
-                            `}>
-                                                    <Checkbox
-                                                        checked={isEnabled || isAdmin}
-                                                        onCheckedChange={(c) => !isAdmin && togglePermission(module.key, action.key, c as boolean)}
-                                                        disabled={isAdmin}
-                                                        className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                                                    />
-                                                    <div className="flex-1">
-                                                        <span className={`text-sm font-medium ${isEnabled ? 'text-foreground' : 'text-muted-foreground'}`}>
-                                                            {action.label}
-                                                        </span>
-                                                    </div>
-                                                </label>
-                                            );
-                                        })}
-                                    </div>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem disabled={activeRole.isSystem}>
+                                                <Edit2 className="w-4 h-4 mr-2" /> Rename
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem className="text-destructive" disabled={activeRole.isSystem}>
+                                                <Trash2 className="w-4 h-4 mr-2" /> Delete
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                </>
-                ) : (
-                <div className="flex flex-col items-center justify-center p-12 text-center text-muted-foreground">
-                    <Shield className="w-12 h-12 mb-4 opacity-20" />
-                    <p>Select a role to configure permissions</p>
+
+                            {/* Matrix */}
+                            <div className="divide-y divide-border">
+                                {ALL_MODULES.map(module => (
+                                    <div key={module.key} className="p-6 hover:bg-muted/10 transition-colors">
+                                        <div className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-12">
+                                            <div className="sm:w-48 shrink-0">
+                                                <h4 className="font-semibold text-foreground mb-1">{module.label}</h4>
+                                                <p className="text-xs text-muted-foreground">Access settings for {module.label.toLowerCase()} module</p>
+                                            </div>
+
+                                            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {/* Global View/Edit per module if applicable, or specific sub-actions */}
+                                                {module.subActions.map(action => {
+                                                    const pKey = permKey(module.key, action.key);
+                                                    const isEnabled = activeRole.permissions.includes(pKey);
+
+                                                    // Admin bypass visual
+                                                    const isAdmin = activeRole.id === 'role_admin';
+
+                                                    return (
+                                                        <label key={action.key} className={`flex items-center gap-3 p-2 rounded-lg border transition-all cursor-pointer
+                              ${isEnabled
+                                                                ? 'bg-primary/5 border-primary/20 shadow-sm'
+                                                                : 'bg-transparent border-transparent hover:bg-secondary'
+                                                            }
+                              ${isAdmin ? 'opacity-70 cursor-not-allowed' : ''}
+                            `}>
+                                                            <Checkbox
+                                                                checked={isEnabled || isAdmin}
+                                                                onCheckedChange={(c) => !isAdmin && togglePermission(module.key, action.key, c as boolean)}
+                                                                disabled={isAdmin}
+                                                                className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                                            />
+                                                            <div className="flex-1">
+                                                                <span className={`text-sm font-medium ${isEnabled ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                                                    {action.label}
+                                                                </span>
+                                                            </div>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center p-12 text-center text-muted-foreground">
+                            <Shield className="w-12 h-12 mb-4 opacity-20" />
+                            <p>Select a role to configure permissions</p>
+                        </div>
+                    )}
                 </div>
-          )}
             </div>
-        </div>
-    </div >
-  );
+        </div >
+    );
 }

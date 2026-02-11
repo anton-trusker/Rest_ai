@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/core/lib/utils';
 
 export interface DataTableColumn<T> {
     key: string;

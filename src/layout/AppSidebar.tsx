@@ -5,8 +5,9 @@ import {
     LayoutDashboard, Wine, Package, History, BarChart3, ClipboardCheck,
     LogOut, Settings, User, Plus, ScanLine, Truck
 } from 'lucide-react';
-import ThemeToggle from './ThemeToggle';
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import type { ModuleKey } from '@/core/lib/referenceData';
+import ThemeToggle from './ThemeToggle';
 
 interface NavItemDef {
     label: string;
@@ -174,6 +175,11 @@ export default function AppSidebar() {
                         );
                     })}
                 </nav>
+
+                {/* Install Prompt */}
+                <div className="px-4 pb-2">
+                    <InstallPrompt />
+                </div>
 
                 {/* User section */}
                 <div className="p-4 border-t border-sidebar-border">

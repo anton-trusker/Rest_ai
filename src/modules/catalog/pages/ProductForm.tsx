@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { mockWines } from '@/core/lib/mockData';
 import { useAuthStore } from '@/core/auth/authStore';
@@ -271,4 +271,4 @@ export default function ProductForm() {
     );
 }
 
-import { useMemo } from 'react'; // Added missing import at the end of file for useMemo
+

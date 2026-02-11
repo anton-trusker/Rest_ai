@@ -6,7 +6,7 @@ import { Button } from '@/core/ui/button';
 import {
     Popover, PopoverContent, PopoverTrigger
 } from '@/core/ui/popover';
-import { cn } from '@/lib/utils';
+import { cn } from '@/core/lib/utils';
 
 interface MultiSelectFilterProps {
     label: string;

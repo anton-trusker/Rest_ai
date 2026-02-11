@@ -146,25 +146,25 @@ export default function UserManagement() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8 ml-2">
                     <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                  </Button>
                 </DropdownMenuTrigger>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem>Edit User</DropdownMenuItem>
-                <DropdownMenuItem>Reset Password</DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive">Deactivate</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-              </div>
-      ))}
-    </div>
-  )
-}
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem>Edit User</DropdownMenuItem>
+                  <DropdownMenuItem>Reset Password</DropdownMenuItem>
+                  <DropdownMenuItem className="text-destructive">Deactivate</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ))}
+        </div>
+      )
+      }
 
-<CreateUserDialog
-  open={isDialogOpen}
-  onOpenChange={setIsDialogOpen}
-  onSuccess={fetchUsers}
-/>
+      <CreateUserDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        onSuccess={fetchUsers}
+      />
     </div >
   );
 }

@@ -16,6 +16,8 @@ import { Badge } from "@/core/ui/badge";
 import { useToast } from "@/core/ui/use-toast";
 import { Search, Camera, Plus, Minus, CheckCircle, ArrowLeft } from "lucide-react";
 import QuantityPopup from "../components/QuantityPopup";
+import { AIRecognitionButton } from "../components/AIRecognitionButton";
+import { Skeleton } from "@/core/ui/skeleton";
 
 interface InventoryItem {
     id: string;
@@ -29,7 +31,7 @@ interface InventoryItem {
 }
 
 export default function CountingInterface() {
-    const { id } = useParams<{ id: string }>();
+
     const navigate = useNavigate();
     const { user } = useAuthStore();
     const { toast } = useToast();
@@ -39,36 +41,31 @@ export default function CountingInterface() {
     const [selectedProduct, setSelectedProduct] = useState<any>(null);
     const [showQuantityPopup, setShowQuantityPopup] = useState(false);
 
-    // Fetch session
+    // Fetch session - Global Session context
     const { data: session } = useQuery({
-        queryKey: ['inventory-session', id],
+        queryKey: ['global-inventory-session'],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from('inventory_sessions')
-                .select('*, locations(name)')
-                .eq('id', id)
-                .single();
-
+            const { data, error } = await supabase.rpc('get_active_global_session');
             if (error) throw error;
-            return data;
-        },
-        enabled: !!id,
+            return data?.[0] || null;
+        }
     });
 
-    // Fetch items in this session
-    const { data: items } = useQuery({
-        queryKey: ['inventory-items', id],
+    // Fetch items in this global session
+    const { data: items, isLoading: isLoadingItems } = useQuery({
+        queryKey: ['inventory-items', session?.id],
         queryFn: async () => {
+            if (!session?.id) return [];
             const { data, error } = await supabase
                 .from('inventory_items')
                 .select('*, products(name, unit)')
-                .eq('session_id', id)
-                .order('counted_at', { ascending: false });
+                .eq('global_session_id', session.id)
+                .order('updated_at', { ascending: false });
 
             if (error) throw error;
             return data as InventoryItem[];
         },
-        enabled: !!id,
+        enabled: !!session?.id,
     });
 
     // Search products
@@ -93,16 +90,18 @@ export default function CountingInterface() {
     // Add/update item mutation
     const addItemMutation = useMutation({
         mutationFn: async ({ productId, quantity, quantityOpened }: any) => {
+            if (!session?.id) throw new Error("No active session");
+
             const { data, error } = await supabase
                 .from('inventory_items')
                 .upsert({
-                    session_id: id,
+                    global_session_id: session.id,
                     product_id: productId,
-                    location_id: session?.location_id,
-                    quantity,
-                    quantity_opened: quantityOpened || 0,
-                    counted_by: user?.id,
-                })
+                    quantity: quantity, // This is "cases" or main unit
+                    quantity_opened: quantityOpened || 0, // This is "bottles" or sub unit
+                    updated_at: new Date().toISOString(),
+                    updated_by: user?.id
+                }, { onConflict: 'global_session_id, product_id' })
                 .select()
                 .single();
 
@@ -110,13 +109,13 @@ export default function CountingInterface() {
             return data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['inventory-items', id] });
+            queryClient.invalidateQueries({ queryKey: ['inventory-items', session?.id] });
             setShowQuantityPopup(false);
             setSelectedProduct(null);
             setSearchTerm("");
             toast({
                 title: "Item counted",
-                description: "Item added to session",
+                description: "Item saved",
             });
         },
     });
@@ -124,10 +123,11 @@ export default function CountingInterface() {
     // Complete session
     const completeSessionMutation = useMutation({
         mutationFn: async () => {
-            const { error } = await supabase
-                .from('inventory_sessions')
-                .update({ status: 'completed', completed_at: new Date().toISOString() })
-                .eq('id', id);
+            if (!session?.id) throw new Error("No active session");
+
+            const { error } = await supabase.functions.invoke('complete-inventorisation', {
+                body: { session_id: session.id }
+            });
 
             if (error) throw error;
         },
@@ -136,7 +136,7 @@ export default function CountingInterface() {
                 title: "Session completed",
                 description: "Ready for review",
             });
-            navigate(`/inventory/session/${id}/review`);
+            navigate(`/inventory/review`);
         },
     });
 
@@ -201,9 +201,26 @@ export default function CountingInterface() {
                                 className="pl-8"
                             />
                         </div>
-                        <Button variant="outline" size="icon">
-                            <Camera className="h-4 w-4" />
-                        </Button>
+                        <AIRecognitionButton
+                            onProductMatched={(productId, productName) => {
+                                // Find the product by ID  and open quantity popup
+                                const product = products?.find(p => p.id === productId);
+                                if (product) {
+                                    handleProductSelect(product);
+                                } else {
+                                    // Fetch product if not in current results
+                                    supabase
+                                        .from('products')
+                                        .select('*')
+                                        .eq('id', productId)
+                                        .single()
+                                        .then(({ data }) => {
+                                            if (data) handleProductSelect(data);
+                                        });
+                                }
+                            }}
+                            sessionId={session?.id}
+                        />
                     </div>
 
                     {/* Search Results */}
@@ -235,7 +252,13 @@ export default function CountingInterface() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {!items || items.length === 0 ? (
+                    {isLoadingItems ? (
+                        <div className="space-y-4">
+                            <Skeleton className="h-16 w-full" />
+                            <Skeleton className="h-16 w-full" />
+                            <Skeleton className="h-16 w-full" />
+                        </div>
+                    ) : !items || items.length === 0 ? (
                         <p className="text-center py-8 text-muted-foreground">
                             No items counted yet. Search and add products above.
                         </p>
@@ -244,7 +267,7 @@ export default function CountingInterface() {
                             {items.map((item) => (
                                 <div
                                     key={item.id}
-                                    className="flex items-center justify-between p-3 rounded-lg border"
+                                    className="flex items-center justify-between p-3 rounded-lg border touch-manipulation"
                                 >
                                     <div>
                                         <p className="font-medium">{item.products?.name}</p>
@@ -296,7 +319,13 @@ export default function CountingInterface() {
             {showQuantityPopup && selectedProduct && (
                 <QuantityPopup
                     product={selectedProduct}
-                    onSave={handleQuantitySave}
+                    onSave={(qty, open) => {
+                        addItemMutation.mutate({
+                            productId: selectedProduct.id,
+                            quantity: qty,
+                            quantityOpened: open
+                        });
+                    }}
                     onClose={() => {
                         setShowQuantityPopup(false);
                         setSelectedProduct(null);
