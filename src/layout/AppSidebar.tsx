@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore, useUserRole } from '@/core/auth/authStore';
+import { useFeatureFlags } from '@/core/feature-flags/FeatureFlagProvider';
 import {
     LayoutDashboard, Wine, Package, History, BarChart3, ClipboardCheck,
     LogOut, Settings, User, Plus, ScanLine, Truck
@@ -12,6 +13,7 @@ interface NavItemDef {
     icon: React.ElementType;
     path: string;
     module: ModuleKey;
+    flag?: string; // Optional feature flag key
 }
 
 interface NavGroup {
@@ -29,27 +31,27 @@ const navGroups: NavGroup[] = [
     {
         title: 'Inventory',
         items: [
-            { label: 'Current Stock', icon: Package, path: '/stock', module: 'stock' },
-            { label: 'Start Count', icon: ScanLine, path: '/count', module: 'stock' },
-            { label: 'Session Review', icon: ClipboardCheck, path: '/sessions', module: 'sessions' },
+            { label: 'Current Stock', icon: Package, path: '/stock', module: 'stock', flag: 'module.stock' },
+            { label: 'Start Count', icon: ScanLine, path: '/count', module: 'stock', flag: 'module.inventory' },
+            { label: 'Session Review', icon: ClipboardCheck, path: '/sessions', module: 'sessions', flag: 'module.sessions' },
         ],
     },
     {
         title: 'Catalog',
         items: [
-            { label: 'Wine Catalog', icon: Wine, path: '/catalog', module: 'catalog' },
+            { label: 'Wine Catalog', icon: Wine, path: '/catalog', module: 'catalog', flag: 'module.catalog' },
         ],
     },
     {
         items: [
-            { label: 'History & Logs', icon: History, path: '/history', module: 'history' },
+            { label: 'History & Logs', icon: History, path: '/history', module: 'history', flag: 'module.history' },
         ],
     },
     {
         title: 'Reports',
-        comingSoon: true,
+        comingSoon: true, // Remove this if reports are ready
         items: [
-            { label: 'Reports', icon: BarChart3, path: '/reports', module: 'reports' },
+            { label: 'Reports', icon: BarChart3, path: '/reports', module: 'reports', flag: 'module.reports' },
         ],
     },
     {
@@ -59,7 +61,8 @@ const navGroups: NavGroup[] = [
     },
     {
         items: [
-            { label: 'Settings', icon: Settings, path: '/settings', module: 'settings' },
+            { label: 'User Management', icon: User, path: '/users', module: 'users', flag: 'module.users' },
+            { label: 'Settings', icon: Settings, path: '/settings', module: 'settings', flag: 'module.settings' },
         ],
     },
 ];
@@ -67,6 +70,7 @@ const navGroups: NavGroup[] = [
 export default function AppSidebar() {
     const { user, logout } = useAuthStore();
     const role = useUserRole();
+    const flags = useFeatureFlags();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -74,7 +78,17 @@ export default function AppSidebar() {
         location.pathname === path || (path !== '/dashboard' && location.pathname.startsWith(path));
 
     const filterItems = (items: NavItemDef[]) =>
-        items.filter(item => role && role.permissions[item.module] !== 'none');
+        items.filter(item => {
+            // Permission check
+            if (!role || role.permissions[item.module] === 'none') {
+                return false;
+            }
+            // Feature flag check
+            if (item.flag && !flags.get(item.flag)) {
+                return false;
+            }
+            return true;
+        });
 
     return (
         <>

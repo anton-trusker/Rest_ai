@@ -9,6 +9,8 @@ import AppLayout from "@/layout/AppLayout";
 import Login from "@/core/auth/pages/Login";
 import { AuthProvider } from "@/core/auth/AuthProvider";
 import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
+import { FeatureFlagProvider } from "@/core/feature-flags/FeatureFlagProvider";
+import { FeatureGate } from "@/core/feature-flags/FeatureGate";
 
 import Dashboard from "@/modules/dashboard/pages/Dashboard";
 import ProductCatalog from "@/modules/catalog/pages/ProductCatalog";
@@ -23,6 +25,14 @@ import UserManagement from "@/modules/users/pages/UserManagement";
 import Reports from "@/modules/reports/pages/Reports";
 import AppSettings from "@/core/settings/pages/AppSettings";
 import GeneralSettings from "@/core/settings/pages/GeneralSettings";
+import BusinessSettings from "@/core/settings/pages/BusinessSettings";
+import LocationSettings from "@/core/settings/pages/LocationSettings";
+import GlassSettings from "@/core/settings/pages/GlassSettings";
+import InventorySettings from "@/core/settings/pages/InventorySettings";
+import SyrveSettings from "@/core/settings/pages/SyrveSettings";
+import AISettings from "@/core/settings/pages/AISettings";
+import BrandingSettings from "@/core/settings/pages/BrandingSettings";
+import FeatureFlagsAdmin from "@/core/settings/pages/FeatureFlagsAdmin";
 import RolesPermissions from "@/modules/users/pages/RolesPermissions";
 import Profile from "@/modules/users/pages/Profile";
 import NotFound from "@/core/ui/pages/NotFound";
@@ -92,11 +102,31 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="/reports" element={<Reports />} />
-                <Route path="/settings" element={<AppSettings />} />
-                <Route path="/settings/general" element={<GeneralSettings />} />
-                <Route path="/settings/roles" element={
-                  <ProtectedRoute module="settings" action="view">
-                    <RolesPermissions />
+                <Route path="/settings" element={
+                  <FeatureGate flag="module.settings">
+                    <AppSettings />
+                  </FeatureGate>
+                }>
+                  <Route index element={<Navigate to="general" replace />} />
+                  <Route path="general" element={<GeneralSettings />} />
+                  <Route path="business" element={<BusinessSettings />} />
+                  <Route path="locations" element={<LocationSettings />} />
+                  <Route path="glasses" element={<GlassSettings />} />
+                  <Route path="inventory" element={<InventorySettings />} />
+                  <Route path="syrve" element={<SyrveSettings />} />
+                  <Route path="ai" element={<AISettings />} />
+                  <Route path="branding" element={<BrandingSettings />} />
+                  <Route path="roles" element={
+                    <ProtectedRoute module="settings" action="view">
+                      <RolesPermissions />
+                    </ProtectedRoute>
+                  } />
+                </Route>
+
+                {/* Super Admin Routes */}
+                <Route path="/super-admin/feature-flags" element={
+                  <ProtectedRoute module="super_admin" action="view">
+                    <FeatureFlagsAdmin />
                   </ProtectedRoute>
                 } />
 
