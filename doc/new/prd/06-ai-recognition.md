@@ -423,6 +423,232 @@ LIMIT 20;
 
 ---
 
+---
+
+## Rate Limiting and Cost Control
+
+### **Rate Limit Configuration**
+
+Protect against abuse and control AI costs:
+
+```typescript
+// In Edge Function: ai-scan
+import { checkRateLimit } from '../_shared/security.ts';
+
+serve(async (req) => {
+  const { supabase, userId } = await validateCallerPermissions(req);
+
+  // Check rate limit: 50 scans per hour per user
+  const rateLimit = await checkRateLimit(supabase, userId, {
+    maxRequests: 50,
+    windowMs: 3600000, // 1 hour
+    keyPrefix: 'ai-scan'
+  });
+
+  if (!rateLimit.allowed) {
+    return new Response(JSON.stringify({
+      error: 'Rate limit exceeded. Please try again later.',
+      resetAt: rateLimit.resetAt,
+      remaining: 0
+    }), { 
+      status: 429,
+      headers: { 
+        'Retry-After': String(Math.ceil((rateLimit.resetAt.getTime() - Date.now()) / 1000))
+      }
+    });
+  }
+
+  // ... proceed with AI recognition
+});
+```
+
+### **Cost Tracking**
+
+Track AI API costs per scan:
+
+```sql
+-- Add cost tracking to ai_runs table
+ALTER TABLE ai_runs 
+ADD COLUMN cost_usd NUMERIC(10, 4),
+ADD COLUMN provider_usage JSONB DEFAULT '{}';
+
+-- Example cost calculation after AI run
+UPDATE ai_runs
+SET 
+  cost_usd = (
+    (ocr_chars / 1000.0 * 0.0015) +  -- Google Vision
+    (embedding_tokens / 1000000.0 * 0.02) +  -- OpenAI embeddings
+    (vision_api_calls * 0.000075)    -- Gemini Flash
+  ),
+  provider_usage = jsonb_build_object(
+    'ocr_chars', 450,
+    'embedding_tokens', 120,
+    'vision_calls', 1
+  )
+WHERE id = 'run-uuid';
+```
+
+### **Monthly Cost Dashboard**
+
+```sql
+-- Query monthly AI costs
+SELECT
+  DATE_TRUNC('month', created_at) AS month,
+  COUNT(*) AS total_scans,
+  SUM(cost_usd) AS total_cost_usd,
+  AVG(cost_usd) AS avg_cost_per_scan,
+  COUNT(*) FILTER (WHERE status = 'succeeded') AS successful_scans,
+  COUNT(*) FILTER (WHERE status = 'failed') AS failed_scans
+FROM ai_runs
+WHERE run_type = 'label_recognition'
+GROUP BY month
+ORDER BY month DESC;
+```
+
+---
+
+## AI Provider Configuration
+
+### **Multi-Provider Support**
+
+Configure AI providers via `ai_config` singleton:
+
+```sql
+-- AI provider configuration
+SELECT * FROM ai_config;
+
+{
+  "id": "00000000-0000-0000-0000-000000000001",
+  "is_active": true,
+  "ocr_provider": "google_vision",  -- or "azure_vision", "aws_textract"
+  "vision_provider": "gemini",       -- or "gpt4_vision", "claude_vision"
+  "embedding_provider": "openai",    -- or "azure_openai", "cohere"
+  "use_system_key": true,            -- Use system-wide keys vs custom
+  "custom_api_key_encrypted": null,
+  "model_config": {
+    "ocr_model": "vision-1",
+    "vision_model": "gemini-1.5-flash",
+    "embedding_model": "text-embedding-3-small",
+    "temperature": 0.1,
+    "max_tokens": 2048
+  }
+}
+```
+
+### **Provider Abstraction**
+
+Edge Function pattern for multi-provider support:
+
+```typescript
+interface AIProviderConfig {
+  ocr_provider: 'google_vision' | 'azure_vision';
+  vision_provider: 'gemini' | 'gpt4_vision';
+  embedding_provider: 'openai' | 'azure_openai';
+}
+
+async function getAIConfig(supabase: SupabaseClient): Promise<AIProviderConfig> {
+  const { data } = await supabase
+    .from('ai_config')
+    .select('*')
+    .single();
+
+  return {
+    ocr_provider: data.ocr_provider,
+    vision_provider: data.vision_provider,
+    embedding_provider: data.embedding_provider
+  };
+}
+
+async function callOCR(imageBuffer: Buffer, provider: string): Promise<string> {
+  switch (provider) {
+    case 'google_vision':
+      return await googleVisionOCR(imageBuffer);
+    case 'azure_vision':
+      return await azureVisionOCR(imageBuffer);
+    default:
+      throw new Error(`Unknown OCR provider: ${provider}`);
+  }
+}
+
+async function callVisionModel(
+  imageBase64: string,
+  candidates: Product[],
+  provider: string
+): Promise<VerificationResult> {
+  switch (provider) {
+    case 'gemini':
+      return await geminiVerify(imageBase64, candidates);
+    case 'gpt4_vision':
+      return await gpt4VisionVerify(imageBase64, candidates);
+    default:
+      throw new Error(`Unknown vision provider: ${provider}`);
+  }
+}
+```
+
+### **API Key Management**
+
+Store provider keys in Supabase Secrets:
+
+```bash
+# Set AI provider API keys
+supabase secrets set GOOGLE_VISION_API_KEY=AIza...
+supabase secrets set OPENAI_API_KEY=sk-proj-...
+supabase secrets set GEMINI_API_KEY=AIza...
+supabase secrets set AZURE_VISION_KEY=...
+supabase secrets set AZURE_VISION_ENDPOINT=https://...
+```
+
+Access in Edge Functions:
+
+```typescript
+const apiKey = Deno.env.get('GOOGLE_VISION_API_KEY');
+if (!apiKey) {
+  throw new Error('AI provider API key not configured');
+}
+```
+
+### **Confidence Threshold Tuning**
+
+Adjust confidence thresholds via `ai_config`:
+
+```sql
+UPDATE ai_config
+SET model_config = jsonb_set(
+  model_config,
+  '{confidence_thresholds}',
+  '{
+    "vector_search_min": 0.7,
+    "vision_verification_min": 0.75,
+    "auto_accept_threshold": 0.95
+  }'::jsonb
+);
+```
+
+Usage in Edge Function:
+
+```typescript
+const { data: aiConfig } = await supabase
+  .from('ai_config')
+  .select('model_config')
+  .single();
+
+const thresholds = aiConfig.model_config.confidence_thresholds;
+
+// Filter vector search results
+const highConfidenceCandidates = vectorResults.filter(
+  c => c.similarity >= thresholds.vector_search_min
+);
+
+// Auto-accept high confidence matches
+if (visionResult.confidence >= thresholds.auto_accept_threshold) {
+  // Automatically add to inventory count without user confirmation
+  await autoAddToInventory(sessionId, visionResult.product_id);
+}
+```
+
+---
+
 ## Performance Optimization
 
 ### **1. Image Pre-processing**

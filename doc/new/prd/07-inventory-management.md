@@ -178,6 +178,33 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
+```
+
+#### **Aggregate Maintenance**
+
+While triggers handle real-time updates, a manual refresh function is provided for maintenance or to fix drift:
+
+```sql
+CREATE OR REPLACE FUNCTION refresh_inventory_aggregates(p_session_id UUID)
+RETURNS VOID AS $$
+BEGIN
+    DELETE FROM inventory_product_aggregates WHERE session_id = p_session_id;
+    
+    INSERT INTO inventory_product_aggregates 
+    (session_id, product_id, counted_unopened_total, counted_open_liters_total, counted_total_liters)
+    SELECT
+        session_id,
+        product_id,
+        SUM(bottles_unopened),
+        SUM(open_liters),
+        SUM(bottles_unopened * COALESCE(750, 750) / 1000.0 + open_liters) -- Simplified, join products for real cap
+    FROM inventory_count_events
+    WHERE session_id = p_session_id
+    GROUP BY session_id, product_id;
+END;
+$$ LANGUAGE plpgsql;
+```
+
 #### **4. `inventory_variances`** (Computed View)
 
 ```sql

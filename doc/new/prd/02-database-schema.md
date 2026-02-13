@@ -311,6 +311,82 @@ ON CONFLICT (id) DO NOTHING;
 
 ## Layer 3: Syrve Integration
 
+### **`syrve_config`**
+
+**Purpose:** Central Syrve server connection configuration (singleton table).
+
+**Design:** Enforces single-row constraint - one Syrve configuration per deployment.
+
+```sql
+CREATE TABLE syrve_config (
+    id UUID PRIMARY KEY DEFAULT '00000000-0000-0000-0000-000000000001'::UUID,
+    server_url TEXT NOT NULL,
+    api_login TEXT NOT NULL,
+    api_password_encrypted TEXT NOT NULL,  -- Use Supabase Vault or pgcrypto
+    default_store_id UUID,
+    default_department_id UUID,
+    selected_category_ids UUID[],  -- Optional product group filter
+    account_surplus_code TEXT DEFAULT '5.10',
+    account_shortage_code TEXT DEFAULT '5.09',
+    connection_status TEXT NOT NULL DEFAULT 'disconnected',  -- 'connected'|'disconnected'|'error'
+    connection_tested_at TIMESTAMPTZ,
+    last_sync_at TIMESTAMPTZ,
+    sync_lock_until TIMESTAMPTZ,  -- Prevents concurrent syncs
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    
+    CONSTRAINT enforce_singleton CHECK (id = '00000000-0000-0000-0000-000000000001'::UUID)
+);
+
+CREATE INDEX idx_syrve_config_status ON syrve_config(connection_status);
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Fixed singleton ID |
+| `server_url` | TEXT | Syrve server URL (e.g., `http://192.168.1.100:8080`) |
+| `api_login` | TEXT | Syrve API username |
+| `api_password_encrypted` | TEXT | Encrypted password (use Supabase Vault) |
+| `default_store_id` | UUID | Selected Syrve store for operations |
+| `default_department_id` | UUID | Optional department filter |
+| `selected_category_ids` | UUID[] | Optional product group filter |
+| `account_surplus_code` | TEXT | Syrve GL account for inventory surplus |
+| `account_shortage_code` | TEXT | Syrve GL account for inventory shortage |
+| `connection_status` | TEXT | Connection health: connected/disconnected/error |
+| `connection_tested_at` | TIMESTAMPTZ | Last successful connection test |
+| `last_sync_at` | TIMESTAMPTZ | Last product sync timestamp |
+| `sync_lock_until` | TIMESTAMPTZ | Sync lock to prevent concurrent operations |
+
+**Security:**
+```sql
+-- Use Supabase Vault for password encryption
+SELECT vault.create_secret(password_text, 'syrve_api_password');
+
+-- Decrypt in Edge Functions
+SELECT decrypted_secret FROM vault.decrypted_secrets 
+WHERE name = 'syrve_api_password';
+```
+
+**RLS Policies:**
+```sql
+-- Only authenticated users can view
+ALTER TABLE syrve_config ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "syrve_config_select" ON syrve_config
+  FOR SELECT USING (auth.role() = 'authenticated');
+
+-- Only admins can modify
+CREATE POLICY "syrve_config_update" ON syrve_config
+  FOR UPDATE USING (
+    auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')
+  );
+```
+
+---
+
+
+
 ### **`syrve_raw_objects`**
 
 Loss less mirror of all Syrve API responses.
@@ -375,6 +451,46 @@ CREATE TABLE syrve_outbox_jobs (
 
 CREATE INDEX idx_syrve_outbox_status ON syrve_outbox_jobs(status);
 CREATE INDEX idx_syrve_outbox_session ON syrve_outbox_jobs(session_id);
+```
+
+---
+
+### **`syrve_api_logs`**
+
+**Purpose:** Detailed request/response logging for Syrve API debugging.
+
+**Retention:** Consider partitioning by month with 30-day TTL.
+
+```sql
+CREATE TABLE syrve_api_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    action_type TEXT NOT NULL,  -- 'AUTH'|'FETCH_PRODUCTS'|'STOCK_SNAPSHOT'|'INV_COMMIT'
+    status TEXT NOT NULL CHECK (status IN ('success', 'error', 'timeout')),
+    request_payload TEXT,
+    response_payload TEXT,
+    error_message TEXT,
+    duration_ms INTEGER,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_syrve_api_logs_action_status 
+  ON syrve_api_logs(action_type, status, created_at DESC);
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `action_type` | TEXT | Operation: AUTH, FETCH_PRODUCTS, STOCK_SNAPSHOT, etc. |
+| `status` | TEXT | Result: success/error/timeout |
+| `request_payload` | TEXT | Full request body (XML/JSON) |
+| `response_payload` | TEXT | Full response body |
+| `error_message` | TEXT | Error details if failed |
+| `duration_ms` | INTEGER | Request duration in milliseconds |
+
+**Data Retention Policy:**
+```sql
+-- Delete logs older than 30 days (run via cron)
+DELETE FROM syrve_api_logs 
+WHERE created_at < NOW() - INTERVAL '30 days';
 ```
 
 ---
@@ -800,12 +916,244 @@ CREATE INDEX idx_roles_permissions_gin ON roles USING GIN (permissions);
 
 ### **Performance Tips**
 
-1. **Use materialized views** for complex aggregations
+1. **Use materialized views** for complex aggregations (see below)
 2. **Partition large tables** (inventory_count_events) if > 10M rows
 3. **Regular VACUUM ANALYZE** for query planner stats
 4. **Monitor pgvector index** performance and adjust `lists` parameter
 5. **Use prepared statements** in Edge Functions
 6. **Enable connection pooling** (Supabase default: pgBouncer)
+
+---
+
+## Performance Optimization
+
+### **Materialized Views for Fast Aggregations**
+
+#### **Inventory Session Summary View**
+
+Materialized view for session-level inventory analytics:
+
+```sql
+CREATE MATERIALIZED VIEW inventory_session_summary AS
+SELECT 
+    s.id AS session_id,
+    s.store_id,
+    s.status,
+    s.title,
+    s.created_by,
+    COUNT(DISTINCT ice.product_id) AS products_counted,
+    SUM(ice.bottles_unopened) AS total_bottles_counted,
+    SUM(ice.open_liters) AS total_open_liters_counted,
+    COUNT(ice.id) AS total_count_events,
+    MIN(ice.created_at) AS first_count_at,
+    MAX(ice.created_at) AS last_count_at,
+    COUNT(DISTINCT ice.counted_by) AS counters_involved,
+    s.created_at,
+    s.completed_at
+FROM inventory_sessions s
+LEFT JOIN inventory_count_events ice ON ice.session_id = s.id
+WHERE s.status IN ('in_progress', 'pending_review', 'approved', 'synced')
+GROUP BY s.id, s.store_id, s.status, s.title, s.created_by, s.created_at, s.completed_at;
+
+-- Create unique index for concurrent refresh
+CREATE UNIQUE INDEX idx_inventory_session_summary_id ON inventory_session_summary(session_id);
+
+-- Refresh strategy: after session status changes
+-- REFRESH MATERIALIZED VIEW CONCURRENTLY inventory_session_summary;
+```
+
+**Usage Benefits**:
+- Fast dashboard queries for session metrics
+- No need to aggregate thousands of count events on every page load
+- Supports concurrent refresh (non-blocking)
+
+### **Aggregate Refresh Function**
+
+Automatically refresh `inventory_product_aggregates` table:
+
+```sql
+CREATE OR REPLACE FUNCTION refresh_inventory_aggregates(p_session_id UUID)
+RETURNS VOID AS $$
+BEGIN
+    -- Delete existing aggregates for this session
+    DELETE FROM inventory_product_aggregates 
+    WHERE session_id = p_session_id;
+    
+    -- Insert fresh aggregates from count events
+    INSERT INTO inventory_product_aggregates (
+        session_id,
+        product_id,
+        counted_unopened_total,
+        counted_open_liters_total,
+        counted_total_liters,
+        updated_at
+    )
+    SELECT 
+        session_id,
+        product_id,
+        SUM(bottles_unopened) AS counted_unopened_total,
+        SUM(open_liters) AS counted_open_liters_total,
+        SUM(bottles_unopened * p.unit_capacity_liters) + SUM(open_liters) AS counted_total_liters,
+        NOW() AS updated_at
+    FROM inventory_count_events ice
+    JOIN products p ON p.id = ice.product_id
+    WHERE session_id = p_session_id
+    GROUP BY session_id, product_id;
+    
+    -- Update session updated_at timestamp
+    UPDATE inventory_sessions 
+    SET updated_at = NOW() 
+    WHERE id = p_session_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute to authenticated users
+GRANT EXECUTE ON FUNCTION refresh_inventory_aggregates(UUID) TO authenticated;
+```
+
+**Usage**:
+```sql
+-- Call after adding/modifying count events
+SELECT refresh_inventory_aggregates('session-uuid-here');
+```
+
+### **Fuzzy Product Matching Function**
+
+Intelligent product matching for Syrve synchronization:
+
+```sql
+CREATE OR REPLACE FUNCTION find_syrve_product_match(
+    p_syrve_name TEXT,
+    p_syrve_sku TEXT,
+    p_syrve_barcode TEXT
+)
+RETURNS TABLE (
+    product_id UUID,
+    confidence_score NUMERIC,
+    match_reason TEXT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        p.id AS product_id,
+        CASE 
+            -- Exact barcode match (highest confidence)
+            WHEN pb.barcode = p_syrve_barcode AND p_syrve_barcode IS NOT NULL THEN 1.0
+            -- Exact SKU match
+            WHEN p.sku = p_syrve_sku AND p_syrve_sku IS NOT NULL THEN 0.95
+            -- High name similarity (fuzzy)
+            WHEN similarity(p.name, p_syrve_name) > 0.8 THEN 0.75
+            -- Medium name similarity
+            WHEN similarity(p.name, p_syrve_name) > 0.6 THEN 0.50
+            ELSE 0.0
+        END AS confidence_score,
+        CASE 
+            WHEN pb.barcode = p_syrve_barcode AND p_syrve_barcode IS NOT NULL THEN 'barcode_exact'
+            WHEN p.sku = p_syrve_sku AND p_syrve_sku IS NOT NULL THEN 'sku_exact'
+            WHEN similarity(p.name, p_syrve_name) > 0.8 THEN 'name_high_similarity'
+            WHEN similarity(p.name, p_syrve_name) > 0.6 THEN 'name_medium_similarity'
+            ELSE 'no_match'
+        END AS match_reason
+    FROM products p
+    LEFT JOIN product_barcodes pb ON pb.product_id = p.id
+    WHERE p.is_active = true
+    AND p.is_deleted = false
+    AND (
+        pb.barcode = p_syrve_barcode 
+        OR p.sku = p_syrve_sku 
+        OR similarity(p.name, p_syrve_name) > 0.6
+    )
+    ORDER BY confidence_score DESC
+    LIMIT 5;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Requires fuzzystrmatch extension
+-- CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
+
+-- Grant execute to service role
+GRANT EXECUTE ON FUNCTION find_syrve_product_match(TEXT, TEXT, TEXT) TO service_role;
+```
+
+**Usage in Edge Functions**:
+```typescript
+const { data: matches } = await supabase
+  .rpc('find_syrve_product_match', {
+    p_syrve_name: 'Chateau Margaux 2015',
+    p_syrve_sku: 'MAR2015',
+    p_syrve_barcode: '1234567890123'
+  });
+
+if (matches[0]?.confidence_score >= 0.75) {
+  // High confidence match found
+  const matchedProduct = matches[0];
+}
+```
+
+### **Index Strategy for Single-Tenant**
+
+Since this is a single-tenant deployment, indexes are simplified (no composite `(business_id, ...)` needed):
+
+```sql
+-- Single-tenant optimized indexes (already defined above)
+-- All foreign key columns automatically indexed
+-- Additional performance indexes:
+
+-- Fast barcode lookup across all products
+CREATE INDEX idx_product_barcodes_lookup 
+ON product_barcodes(barcode) 
+WHERE is_primary = true;
+
+-- Fast active wine product query
+CREATE INDEX idx_wines_active 
+ON wines(product_id) 
+WHERE is_active = true;
+
+-- Fast session lookup by status
+CREATE INDEX idx_inventory_sessions_active 
+ON inventory_sessions(status, created_at DESC) 
+WHERE status IN ('draft', 'in_progress', 'pending_review');
+```
+
+### **Query Optimization Patterns**
+
+#### **Event-Sourced Aggregation Pattern**
+
+Instead of repeatedly aggregating count events:
+
+```sql
+-- ❌ SLOW: Aggregating on every query
+SELECT 
+    product_id,
+    SUM(bottles_unopened) AS total
+FROM inventory_count_events
+WHERE session_id = 'some-uuid'
+GROUP BY product_id;
+
+-- ✅ FAST: Use pre-computed aggregates
+SELECT 
+    product_id,
+    counted_unopened_total,
+    counted_open_liters_total,
+    counted_total_liters
+FROM inventory_product_aggregates
+WHERE session_id = 'some-uuid';
+```
+
+#### **Efficient Product Search with Vector**
+
+```sql
+-- Vector similarity search for AI label matching
+SELECT 
+    p.id,
+    p.name,
+    1 - (psi.embedding <=> query_embedding) AS similarity
+FROM product_search_index psi
+JOIN products p ON p.id = psi.product_id
+WHERE p.is_active = true
+ORDER BY psi.embedding <=> query_embedding
+LIMIT 10;
+```
 
 ---
 

@@ -314,6 +314,51 @@ Content-Type: application/json
 }
 ```
 
+#### **Sync Products**
+
+```http
+POST /functions/v1/syrve-sync-products
+Authorization: Bearer {JWT}
+Content-Type: application/json
+
+{
+  "force_full_sync": false
+}
+```
+
+**Response**:
+```json
+{
+  "sync_run_id": "uuid",
+  "stats": {
+    "products_synced": 42,
+    "duration_ms": 1200
+  }
+}
+```
+
+#### **Stock Snapshot**
+
+```http
+POST /functions/v1/syrve-stock-snapshot
+Authorization: Bearer {JWT}
+Content-Type: application/json
+
+{
+  "store_id": "uuid",
+  "session_id": "uuid" (optional)
+}
+```
+
+**Response**:
+```json
+{
+  "snapshot_id": "uuid",
+  "items_count": 234,
+  "baseline_updated": true
+}
+```
+
 ### **Inventory**
 
 #### **Load Baseline**

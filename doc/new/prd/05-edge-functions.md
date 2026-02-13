@@ -311,7 +311,47 @@ serve(async (req) => {
 }
 ```
 
-**Workflow**: Similar to bootstrap but only syncs products endpoint.
+**Workflow**:
+1. Login to Syrve
+2. Fetch `/products` endpoint
+3. Compare with `products.synced_at`
+4. Upsert changes to `syrve_raw_objects` and `products`
+5. Update `syrve_sync_runs`
+
+### **`syrve-stock-snapshot`**
+
+**Purpose**: Capture current Syrve stock levels for variance analysis.
+**Trigger**: Called by `inventory-load-baseline`.
+
+**Request**:
+```json
+{
+  "store_id": "uuid",
+  "session_id": "uuid" (optional)
+}
+```
+
+**Implementation**:
+```typescript
+serve(async (req) => {
+  const { store_id, session_id } = await req.json();
+  // ... auth check ...
+
+  // 1. Fetch stock from Syrve /stock-and-sales
+  const stockData = await syrveApi.getStock(store_id);
+
+  // 2. Store raw response
+  await supabase.from('syrve_raw_objects').insert({
+    entity_type: 'stock_snapshot',
+    payload: stockData
+  });
+
+  // 3. Update inventory baseline if session provided
+  if (session_id) {
+    await updateBaseline(session_id, stockData);
+  }
+});
+```
 
 ### **`syrve-process-outbox`**
 
@@ -685,6 +725,367 @@ serve(async (req) => {
 ```
 
 **Workflow**: Fetch products in batches, generate embeddings, update `product_search_index`.
+
+---
+
+---
+
+## Security Patterns
+
+### **Standardized Auth Validation Template**
+
+All Edge Functions should validate authentication and permissions:
+
+```typescript
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+interface ValidationConfig {
+  requireAuth?: boolean;
+  requiredModule?: string;
+  requiredAction?: string;
+  requiredLevel?: 'view' | 'edit' | 'full';
+}
+
+async function validateCallerPermissions(
+  req: Request,
+  config: ValidationConfig = {}
+): Promise<{
+  supabase: SupabaseClient;
+  userId: string;
+  profile: any;
+  hasPermission: boolean;
+}> {
+  const {
+    requireAuth = true,
+    requiredModule,
+    requiredAction,
+    requiredLevel = 'edit'
+  } = config;
+
+  // Extract JWT from Authorization header
+  const authHeader = req.headers.get('Authorization');
+  if (requireAuth && !authHeader) {
+    throw new Error('Missing authorization header');
+  }
+
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_ANON_KEY')!,
+    {
+      global: {
+        headers: { Authorization: authHeader! }
+      }
+    }
+  );
+
+  // Verify JWT and get user
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user) {
+    throw new Error('Invalid or expired token');
+  }
+
+  // Fetch profile with roles
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select(`
+      *,
+      user_roles!inner(
+        role:roles(*)
+      )
+    `)
+    .eq('id', user.id)
+    .eq('is_active', true)
+    .single();
+
+  if (profileError || !profile) {
+    throw new Error('User profile not found or inactive');
+  }
+
+  // Check permission if required
+  let hasPermission = true;
+  if (requiredModule && requiredAction) {
+    hasPermission = await checkUserPermission(
+      profile.user_roles,
+      requiredModule,
+      requiredAction,
+      requiredLevel
+    );
+  }
+
+  return {
+    supabase,
+    userId: user.id,
+    profile,
+    hasPermission
+  };
+}
+
+function checkUserPermission(
+  userRoles: any[],
+  module: string,
+  action: string,
+  requiredLevel: string
+): boolean {
+  const levels = { 'none': 0, 'view': 1, 'edit': 2, 'full': 3 };
+  const required = levels[requiredLevel] || 0;
+
+  for (const ur of userRoles) {
+    const role = ur.role;
+    
+    // Super admin bypass
+    if (role.is_super_admin) return true;
+
+    // Check wildcard
+    if (role.permissions['*'] === 'full') return true;
+
+    // Check specific permission
+    const permKey = `${module}.${action}`;
+    const permLevel = role.permissions[permKey] || role.permissions[module] || 'none';
+    const current = levels[permLevel] || 0;
+
+    if (current >= required) return true;
+  }
+
+  return false;
+}
+
+// Usage in Edge Functions:
+serve(async (req) => {
+  try {
+    const { supabase, userId, hasPermission } = await validateCallerPermissions(req, {
+      requiredModule: 'inventory',
+      requiredAction: 'submit',
+      requiredLevel: 'full'
+    });
+
+    if (!hasPermission) {
+      return new Response(JSON.stringify({
+        error: 'Insufficient permissions'
+      }), { status: 403 });
+    }
+
+    // ... function logic
+  } catch (error) {
+    return new Response(JSON.stringify({
+      error: error.message
+    }), { status: 401 });
+  }
+});
+```
+
+### **Rate Limiting for AI Functions**
+
+Prevent abuse of expensive AI endpoints:
+
+```typescript
+interface RateLimitConfig {
+  maxRequests: number;
+  windowMs: number;
+  keyPrefix: string;
+}
+
+async function checkRateLimit(
+  supabase: SupabaseClient,
+  userId: string,
+  config: RateLimitConfig
+): Promise<{ allowed: boolean; remaining: number; resetAt: Date }> {
+  const { maxRequests, windowMs, keyPrefix } = config;
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - windowMs);
+
+  // Count requests in window
+  const { count } = await supabase
+    .from('ai_runs')
+    .select('*', { count: 'exact',  head: true })
+    .eq('created_by', userId)
+    .gte('created_at', windowStart.toISOString());
+
+  const remaining = Math.max(0, maxRequests - (count || 0));
+  const resetAt = new Date(now.getTime() + windowMs);
+
+  return {
+    allowed: remaining > 0,
+    remaining,
+    resetAt
+  };
+}
+
+// Usage:
+serve(async (req) => {
+  const { supabase, userId } = await validateCallerPermissions(req);
+
+  const rateLimit = await checkRateLimit(supabase, userId, {
+    maxRequests: 10,
+    windowMs: 60000, // 1 minute
+    keyPrefix: 'ai-scan'
+  });
+
+  if (!rateLimit.allowed) {
+    return new Response(JSON.stringify({
+      error: 'Rate limit exceeded',
+      resetAt: rateLimit.resetAt
+    }), { 
+      status: 429,
+      headers: { 'Retry-After': String(Math.ceil(rateLimit.resetAt.getTime() / 1000)) }
+    });
+  }
+
+  // ... AI function logic
+});
+```
+
+### **Audit Logging for Sensitive Operations**
+
+Log critical operations for compliance and debugging:
+
+```typescript
+async function auditLog(
+  supabase: SupabaseClient,
+  event: {
+    actor_id: string;
+    action: string;
+    resource_type: string;
+    resource_id?: string;
+    metadata?: any;
+    ip_address?: string;
+  }
+): Promise<void> {
+  await supabase
+    .from('audit_logs')  // Create this table if needed
+    .insert({
+      actor_id: event.actor_id,
+      action: event.action,
+      resource_type: event.resource_type,
+      resource_id: event.resource_id,
+      metadata: event.metadata || {},
+      ip_address: event.ip_address,
+      created_at: new Date().toISOString()
+    });
+}
+
+// Usage:
+serve(async (req) => {
+  const { supabase, userId } = await validateCallerPermissions(req, {
+    requiredModule: 'users',
+    requiredAction: 'manage',
+    requiredLevel: 'full'
+  });
+
+  const { login_name } = await req.json();
+
+  // Create user...
+  const newUser = await createAuthUser(...);
+
+  // Audit log
+  await auditLog(supabase, {
+    actor_id: userId,
+    action: 'user.create',
+    resource_type: 'user',
+    resource_id: newUser.id,
+    metadata: { login_name },
+    ip_address: req.headers.get('x-forwarded-for') || 'unknown'
+  });
+
+  // ...
+});
+```
+
+### **Exponential Backoff Retry Logic**
+
+Robust retry strategy for external API calls:
+
+```typescript
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  options: {
+    maxAttempts?: number;
+    baseDelayMs?: number;
+    maxDelayMs?: number;
+    onRetry?: (attempt: number, error: any) => void;
+  } = {}
+): Promise<T> {
+  const {
+    maxAttempts = 3,
+    baseDelayMs = 1000,
+    maxDelayMs = 10000,
+    onRetry
+  } = options;
+
+  let lastError: any;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < maxAttempts) {
+        const delay = Math.min(
+          baseDelayMs * Math.pow(2, attempt - 1),
+          maxDelayMs
+        );
+
+        if (onRetry) {
+          onRetry(attempt, error);
+        }
+
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+// Usage in Syrve sync:
+serve(async (req) => {
+  const syrveClient = new SyrveClient(...);
+
+  const products = await retryWithBackoff(
+    async () => {
+      await syrveClient.login();
+      const data = await syrveClient.fetchProducts();
+      await syrveClient.logout();
+      return data;
+    },
+    {
+      maxAttempts: 3,
+      baseDelayMs: 1000,
+      onRetry: (attempt, error) => {
+        console.log(`Retry attempt ${attempt}: ${error.message}`);
+      }
+    }
+  );
+
+  // ...
+});
+```
+
+### **Secure Credential Handling**
+
+Always use environment variables, never hardcode secrets:
+
+```typescript
+// ✅ CORRECT: Use Supabase Secrets
+const GOOGLE_VISION_API_KEY = Deno.env.get('GOOGLE_VISION_API_KEY');
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+const SYRVE_API_PASSWORD = Deno.env.get('SYRVE_API_PASSWORD_ENCRYPTED');
+
+if (!GOOGLE_VISION_API_KEY) {
+  throw new Error('Missing GOOGLE_VISION_API_KEY secret');
+}
+
+// ❌ WRONG: Never hardcode
+const API_KEY = 'sk-proj-abc123...'; // NEVER DO THIS
+```
+
+Set secrets via Supabase CLI:
+```bash
+supabase secrets set GOOGLE_VISION_API_KEY=your-key-here
+supabase secrets set OPENAI_API_KEY=sk-proj-...
+supabase secrets set GEMINI_API_KEY=AIza...
+```
 
 ---
 

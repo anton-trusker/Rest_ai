@@ -153,14 +153,34 @@ CREATE TABLE business_profile (
 );
 
 CREATE TABLE syrve_config (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT '00000000-0000-0000-0000-000000000001'::UUID,
     server_url TEXT NOT NULL,
     api_login TEXT NOT NULL,
     api_password_encrypted TEXT NOT NULL,
     default_store_id UUID,
-    connection_status TEXT DEFAULT 'disconnected',
+    default_department_id UUID,
+    selected_category_ids UUID[],
+    account_surplus_code TEXT DEFAULT '5.10',
+    account_shortage_code TEXT DEFAULT '5.09',
+    connection_status TEXT NOT NULL DEFAULT 'disconnected',
+    connection_tested_at TIMESTAMPTZ,
     last_sync_at TIMESTAMPTZ,
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    sync_lock_until TIMESTAMPTZ,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT enforce_singleton CHECK (id = '00000000-0000-0000-0000-000000000001'::UUID)
+);
+
+CREATE TABLE syrve_api_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    action_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    request_payload TEXT,
+    response_payload TEXT,
+    error_message TEXT,
+    duration_ms INTEGER,
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 3. Syrve Integration Schema
