@@ -12,35 +12,34 @@ export default function Login() {
   const { login } = useAuthStore();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState('');
+  const [loginName, setLoginName] = useState('');
   const [password, setPassword] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      toast.error("Please enter both email and password");
-      return;
-    }
-
-    setLoading(true);
-    const { error } = await login(email, password);
-    setLoading(false);
-
-    if (error) {
-      toast.error(error);
+    const success = await login(loginName, password);
+    if (success) {
+      toast({
+        title: "Welcome back!",
+        description: "You have successfully logged in.",
+      });
+      navigate("/dashboard");
     } else {
-      toast.success("Welcome back!");
-      navigate('/dashboard');
+      toast({
+        variant: "destructive",
+        title: "Login failed",
+        description: "Invalid login name or password.",
+      });
     }
   };
 
   // Demo helper to quick-fill
   const fillDemo = (role: 'admin' | 'staff') => {
     if (role === 'admin') {
-      setEmail('admin@wine.com');
+      setLoginName('admin');
       setPassword('admin123');
     } else {
-      setEmail('staff@wine.com');
+      setLoginName('staff');
       setPassword('staff123');
     }
   };
@@ -82,13 +81,13 @@ export default function Login() {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="loginName">Login Name</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="name@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="loginName"
+                type="text"
+                placeholder="e.g. Manager"
+                value={loginName}
+                onChange={(e) => setLoginName(e.target.value)}
                 required
               />
             </div>

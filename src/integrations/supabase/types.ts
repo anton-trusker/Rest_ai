@@ -14,6 +14,117 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_config: {
+        Row: {
+          api_key_encrypted: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system_provided: boolean
+          max_image_size_mb: number
+          model_name: string
+          provider: string
+          rate_limit_per_minute: number
+          settings: Json | null
+          supported_formats: string[] | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          api_key_encrypted?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system_provided?: boolean
+          max_image_size_mb?: number
+          model_name?: string
+          provider?: string
+          rate_limit_per_minute?: number
+          settings?: Json | null
+          supported_formats?: string[] | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          api_key_encrypted?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system_provided?: boolean
+          max_image_size_mb?: number
+          model_name?: string
+          provider?: string
+          rate_limit_per_minute?: number
+          settings?: Json | null
+          supported_formats?: string[] | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      ai_recognition_attempts: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          extracted_data: Json | null
+          id: string
+          image_base64: string | null
+          image_url: string | null
+          match_confidence: number | null
+          match_method: string | null
+          matched_product_id: string | null
+          model_used: string | null
+          processed_at: string | null
+          processing_time_ms: number | null
+          prompt_version: string | null
+          raw_response: Json | null
+          session_id: string | null
+          status: string | null
+          tokens_used: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          extracted_data?: Json | null
+          id?: string
+          image_base64?: string | null
+          image_url?: string | null
+          match_confidence?: number | null
+          match_method?: string | null
+          matched_product_id?: string | null
+          model_used?: string | null
+          processed_at?: string | null
+          processing_time_ms?: number | null
+          prompt_version?: string | null
+          raw_response?: Json | null
+          session_id?: string | null
+          status?: string | null
+          tokens_used?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          extracted_data?: Json | null
+          id?: string
+          image_base64?: string | null
+          image_url?: string | null
+          match_confidence?: number | null
+          match_method?: string | null
+          matched_product_id?: string | null
+          model_used?: string | null
+          processed_at?: string | null
+          processing_time_ms?: number | null
+          prompt_version?: string | null
+          raw_response?: Json | null
+          session_id?: string | null
+          status?: string | null
+          tokens_used?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       app_roles_config: {
         Row: {
           color: string | null
@@ -125,6 +236,54 @@ export type Database = {
         }
         Relationships: []
       }
+      business_profile: {
+        Row: {
+          address: string | null
+          auto_close_sessions: boolean | null
+          currency_symbol: string | null
+          default_par_level: number | null
+          email: string | null
+          id: string
+          logo_url: string | null
+          name: string
+          phone: string | null
+          tax_id: string | null
+          timezone: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          auto_close_sessions?: boolean | null
+          currency_symbol?: string | null
+          default_par_level?: number | null
+          email?: string | null
+          id?: string
+          logo_url?: string | null
+          name: string
+          phone?: string | null
+          tax_id?: string | null
+          timezone?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          auto_close_sessions?: boolean | null
+          currency_symbol?: string | null
+          default_par_level?: number | null
+          email?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+          phone?: string | null
+          tax_id?: string | null
+          timezone?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
       error_logs: {
         Row: {
           context: Json | null
@@ -206,6 +365,188 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+        }
+        Relationships: []
+      }
+      integration_syrve_config: {
+        Row: {
+          api_login: string
+          api_password_hash: string | null
+          api_token_encrypted: string | null
+          base_url: string
+          created_at: string
+          default_store_id: string | null
+          id: string
+          is_active: boolean
+          sync_interval_minutes: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          api_login: string
+          api_password_hash?: string | null
+          api_token_encrypted?: string | null
+          base_url?: string
+          created_at?: string
+          default_store_id?: string | null
+          id?: string
+          is_active?: boolean
+          sync_interval_minutes?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          api_login?: string
+          api_password_hash?: string | null
+          api_token_encrypted?: string | null
+          base_url?: string
+          created_at?: string
+          default_store_id?: string | null
+          id?: string
+          is_active?: boolean
+          sync_interval_minutes?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      integration_syrve_products: {
+        Row: {
+          id: string
+          is_deleted: boolean | null
+          last_synced_at: string
+          mapped_variant_id: string | null
+          mapped_wine_id: string | null
+          measure_unit: string | null
+          name: string
+          price: number | null
+          product_code: string | null
+          product_type: string | null
+          raw_data: Json | null
+          syrve_parent_group_id: string | null
+          syrve_product_id: string
+        }
+        Insert: {
+          id?: string
+          is_deleted?: boolean | null
+          last_synced_at?: string
+          mapped_variant_id?: string | null
+          mapped_wine_id?: string | null
+          measure_unit?: string | null
+          name: string
+          price?: number | null
+          product_code?: string | null
+          product_type?: string | null
+          raw_data?: Json | null
+          syrve_parent_group_id?: string | null
+          syrve_product_id: string
+        }
+        Update: {
+          id?: string
+          is_deleted?: boolean | null
+          last_synced_at?: string
+          mapped_variant_id?: string | null
+          mapped_wine_id?: string | null
+          measure_unit?: string | null
+          name?: string
+          price?: number | null
+          product_code?: string | null
+          product_type?: string | null
+          raw_data?: Json | null
+          syrve_parent_group_id?: string | null
+          syrve_product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_syrve_products_mapped_wine_id_fkey"
+            columns: ["mapped_wine_id"]
+            isOneToOne: false
+            referencedRelation: "wines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_syrve_products_mapped_variant_id_fkey"
+            columns: ["mapped_variant_id"]
+            isOneToOne: false
+            referencedRelation: "wine_variants"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      integration_syrve_stores: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          location_id: string | null
+          syrve_store_id: string
+          syrve_store_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          location_id?: string | null
+          syrve_store_id: string
+          syrve_store_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          location_id?: string | null
+          syrve_store_id?: string
+          syrve_store_name?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_syrve_stores_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      integration_syrve_sync_log: {
+        Row: {
+          action_type: string
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          items_processed: number | null
+          performed_by: string | null
+          request_payload: string | null
+          response_payload: string | null
+          status: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          items_processed?: number | null
+          performed_by?: string | null
+          request_payload?: string | null
+          response_payload?: string | null
+          status: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          items_processed?: number | null
+          performed_by?: string | null
+          request_payload?: string | null
+          response_payload?: string | null
+          status?: string
         }
         Relationships: []
       }
@@ -1186,6 +1527,7 @@ export type Database = {
           supplier_name: string | null
           supplier_sku: string | null
           sweetness: string | null
+          syrve_linked_at: string | null
           tags: Json | null
           tannins: string | null
           tasting_notes: string | null
@@ -1310,6 +1652,7 @@ export type Database = {
           supplier_name?: string | null
           supplier_sku?: string | null
           sweetness?: string | null
+          syrve_linked_at?: string | null
           tags?: Json | null
           tannins?: string | null
           tasting_notes?: string | null
@@ -1434,6 +1777,7 @@ export type Database = {
           supplier_name?: string | null
           supplier_sku?: string | null
           sweetness?: string | null
+          syrve_linked_at?: string | null
           tags?: Json | null
           tannins?: string | null
           tasting_notes?: string | null

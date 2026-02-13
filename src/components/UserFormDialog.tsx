@@ -1,49 +1,129 @@
-import { useState } from 'react';
-import { mockUsers, MockUser } from '@/data/mockWines';
+import { useState, useEffect } from 'react';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Save, Trash2 } from 'lucide-react';
+import { X, Save, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from "@/integrations/supabase/client";
 
 interface UserFormDialogProps {
-  user?: MockUser | null;
+  user?: any;
   open: boolean;
   onClose: () => void;
+  onSave?: () => void;
 }
 
-export default function UserFormDialog({ user, open, onClose }: UserFormDialogProps) {
+export default function UserFormDialog({ user, open, onClose, onSave }: UserFormDialogProps) {
   const { roles } = useSettingsStore();
   const isEdit = !!user;
+  const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
+    name: '',
+    loginName: '',
     password: '',
-    roleId: user?.role === 'admin' ? 'role_admin' : 'role_staff',
-    status: user?.status || 'active',
-    phone: user?.phone || '',
-    jobTitle: user?.jobTitle || '',
-    department: user?.department || '',
-    notes: user?.notes || '',
+    roleId: '',
+    status: 'active',
+    phone: '',
+    jobTitle: '',
+    department: '',
+    notes: '',
   });
+
+  useEffect(() => {
+    if (open) {
+      setForm({
+        name: user?.name || user?.full_name || '',
+        loginName: user?.loginName || user?.login_name || '',
+        password: '',
+        roleId: user?.roleId || user?.role_id || '',
+        status: user?.status || (user?.is_active ? 'active' : 'inactive') || 'active',
+        phone: user?.phone || '',
+        jobTitle: user?.jobTitle || '',
+        department: user?.department || '',
+        notes: user?.notes || '',
+      });
+    }
+  }, [user, open]);
 
   const update = (field: string, value: string) => setForm(f => ({ ...f, [field]: value }));
 
-  const handleSave = () => {
-    if (!form.name || !form.email) {
-      toast.error('Name and Email are required');
+  const handleSave = async () => {
+    if (!form.name || !form.loginName) {
+      toast.error('Name and Login Name are required');
       return;
     }
     if (!isEdit && !form.password) {
       toast.error('Password is required for new users');
       return;
     }
-    toast.success(isEdit ? 'User updated' : 'User created');
-    onClose();
+    if (!form.roleId) {
+        toast.error('Role is required');
+        return;
+    }
+
+    setLoading(true);
+    try {
+        const { error } = await supabase.functions.invoke('manage-users', {
+            body: {
+                action: isEdit ? 'update' : 'create',
+                payload: {
+                    userId: user?.id,
+                    loginName: form.loginName,
+                    password: form.password,
+                    roleId: form.roleId,
+                    fullName: form.name,
+                    // TODO: Handle other fields if backend supports them (phone, jobTitle, etc)
+                    // Currently backend only updates loginName, roleId, fullName, password.
+                    // We might need to extend profiles table for other fields or store in metadata?
+                    // For now, let's stick to core fields.
+                }
+            }
+        });
+
+        if (error) {
+             const body = await error.context?.json?.().catch(() => ({}));
+             throw new Error(body.error || error.message);
+        }
+
+        toast.success(isEdit ? 'User updated' : 'User created');
+        onSave?.();
+        onClose();
+    } catch (e: any) {
+        console.error(e);
+        toast.error('Failed: ' + e.message);
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+      if (!confirm('Are you sure you want to delete this user?')) return;
+      setLoading(true);
+      try {
+        const { error } = await supabase.functions.invoke('manage-users', {
+            body: {
+                action: 'delete',
+                payload: { userId: user?.id }
+            }
+        });
+
+        if (error) {
+             const body = await error.context?.json?.().catch(() => ({}));
+             throw new Error(body.error || error.message);
+        }
+
+        toast.success('User deleted');
+        onSave?.();
+        onClose();
+      } catch (e: any) {
+        toast.error('Failed to delete: ' + e.message);
+      } finally {
+        setLoading(false);
+      }
   };
 
   if (!open) return null;
@@ -64,7 +144,7 @@ export default function UserFormDialog({ user, open, onClose }: UserFormDialogPr
         <div className="p-5 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5"><Label>Full Name *</Label><Input value={form.name} onChange={e => update('name', e.target.value)} className="bg-secondary border-border" /></div>
-            <div className="space-y-1.5"><Label>Email *</Label><Input type="email" value={form.email} onChange={e => update('email', e.target.value)} className="bg-secondary border-border" /></div>
+            <div className="space-y-1.5"><Label>Login Name *</Label><Input value={form.loginName} onChange={e => update('loginName', e.target.value)} className="bg-secondary border-border" placeholder="e.g. Manager" /></div>
           </div>
 
           <div className="space-y-1.5">
@@ -86,7 +166,7 @@ export default function UserFormDialog({ user, open, onClose }: UserFormDialogPr
             <div className="space-y-1.5">
               <Label>Role</Label>
               <Select value={form.roleId} onValueChange={v => update('roleId', v)}>
-                <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Select role" /></SelectTrigger>
                 <SelectContent>
                   {roles.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
@@ -99,9 +179,10 @@ export default function UserFormDialog({ user, open, onClose }: UserFormDialogPr
                 </SelectContent>
               </Select>
             </div>
+            {/* Status is not editable via this dialog yet because backend function doesn't support it explicitly, but let's keep UI */}
             <div className="space-y-1.5">
               <Label>Status</Label>
-              <Select value={form.status} onValueChange={v => update('status', v)}>
+              <Select value={form.status} onValueChange={v => update('status', v)} disabled>
                 <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">Active</SelectItem>
@@ -111,33 +192,23 @@ export default function UserFormDialog({ user, open, onClose }: UserFormDialogPr
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Optional fields - UI only for now as backend needs update to store them */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 opacity-50 pointer-events-none">
             <div className="space-y-1.5"><Label>Phone</Label><Input value={form.phone} onChange={e => update('phone', e.target.value)} className="bg-secondary border-border" /></div>
             <div className="space-y-1.5"><Label>Job Title</Label><Input value={form.jobTitle} onChange={e => update('jobTitle', e.target.value)} className="bg-secondary border-border" /></div>
           </div>
-
-          <div className="space-y-1.5"><Label>Department</Label><Input value={form.department} onChange={e => update('department', e.target.value)} className="bg-secondary border-border" /></div>
-          <div className="space-y-1.5"><Label>Notes</Label><Textarea value={form.notes} onChange={e => update('notes', e.target.value)} className="bg-secondary border-border" rows={2} /></div>
-
-          {isEdit && user && (
-            <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-border">
-              <p>Total Counts: {user.totalCounts}</p>
-              <p>Last Login: {new Date(user.lastLogin).toLocaleString()}</p>
-              {user.createdAt && <p>Created: {new Date(user.createdAt).toLocaleDateString()}</p>}
-            </div>
-          )}
         </div>
 
         <div className="flex items-center justify-between p-5 border-t border-border">
           {isEdit ? (
-            <Button variant="outline" size="sm" className="border-destructive/50 text-destructive hover:bg-destructive/10" onClick={() => { toast.info('Delete feature coming soon'); }}>
-              <Trash2 className="w-4 h-4 mr-1" /> Delete User
+            <Button variant="outline" size="sm" className="border-destructive/50 text-destructive hover:bg-destructive/10" onClick={handleDelete} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-1" />} Delete User
             </Button>
           ) : <div />}
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose} className="border-border">Cancel</Button>
-            <Button onClick={handleSave} className="wine-gradient text-primary-foreground hover:opacity-90">
-              <Save className="w-4 h-4 mr-2" /> {isEdit ? 'Update' : 'Create'}
+            <Button variant="outline" onClick={onClose} className="border-border" disabled={loading}>Cancel</Button>
+            <Button onClick={handleSave} className="wine-gradient text-primary-foreground hover:opacity-90" disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />} {isEdit ? 'Update' : 'Create'}
             </Button>
           </div>
         </div>

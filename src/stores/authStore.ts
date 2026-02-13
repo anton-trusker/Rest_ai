@@ -2,53 +2,132 @@ import { create } from 'zustand';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { ALL_MODULES, permKey } from '@/data/referenceData';
 import type { ModuleKey, PermissionLevel } from '@/data/referenceData';
+import { supabase } from "@/integrations/supabase/client";
 
 export interface User {
   id: string;
   name: string;
   email: string;
+  loginName: string;
   roleId: string; // references AppRole.id
+  isSuperAdmin?: boolean;
   avatar?: string;
 }
 
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => boolean;
-  logout: () => void;
+  isLoading: boolean;
+  login: (loginName: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  initialize: () => Promise<void>;
 }
-
-// Mock users for demo
-const MOCK_USERS: Record<string, { password: string; user: User }> = {
-  'admin@wine.com': {
-    password: 'admin123',
-    user: { id: '1', name: 'Marco Rossi', email: 'admin@wine.com', roleId: 'role_admin' },
-  },
-  'staff@wine.com': {
-    password: 'staff123',
-    user: { id: '2', name: 'Sarah Miller', email: 'staff@wine.com', roleId: 'role_staff' },
-  },
-};
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
-  login: (email: string, password: string) => {
-    const record = MOCK_USERS[email];
-    if (record && record.password === password) {
-      set({ user: record.user, isAuthenticated: true });
-      return true;
+  isLoading: true,
+  login: async (loginName: string, password: string) => {
+    set({ isLoading: true });
+    const email = `${loginName}@inventory.local`;
+
+    // Try Supabase Auth
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error || !data.user) {
+      console.error("Login error:", error);
+      set({ isLoading: false });
+      return false;
     }
-    return false;
+
+    // Fetch Profile to get real Role ID and details
+    const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select(`
+            *,
+            roles (
+                id,
+                name,
+                is_super_admin,
+                permissions
+            )
+        `)
+        .eq('id', data.user.id)
+        .single();
+    
+    if (profileError || !profile) {
+        console.error("Profile fetch error:", profileError);
+        await supabase.auth.signOut();
+        set({ isLoading: false });
+        return false;
+    }
+
+    // Map Supabase user to our internal User structure
+    const user: User = {
+      id: data.user.id,
+      name: profile.full_name || loginName,
+      email: data.user.email || email,
+      loginName: profile.login_name || loginName,
+      roleId: profile.role_id,
+      isSuperAdmin: profile.roles?.is_super_admin || false,
+      avatar: data.user.user_metadata?.avatar_url
+    };
+
+    set({ user, isAuthenticated: true, isLoading: false });
+    return true;
   },
-  logout: () => set({ user: null, isAuthenticated: false }),
+  logout: async () => {
+    set({ isLoading: true });
+    await supabase.auth.signOut();
+    set({ user: null, isAuthenticated: false, isLoading: false });
+  },
+  initialize: async () => {
+    set({ isLoading: true });
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.user) {
+        const { data: profile } = await supabase
+        .from('profiles')
+        .select(`
+            *,
+            roles (
+                id,
+                name,
+                is_super_admin,
+                permissions
+            )
+        `)
+        .eq('id', data.session.user.id)
+        .single();
+
+        if (profile) {
+            const user: User = {
+                id: data.session.user.id,
+                name: profile.full_name || 'User',
+                email: data.session.user.email || '',
+                loginName: profile.login_name || '',
+                roleId: profile.role_id,
+                isSuperAdmin: profile.roles?.is_super_admin || false,
+                avatar: data.session.user.user_metadata?.avatar_url
+            };
+            set({ user, isAuthenticated: true });
+        }
+    }
+    console.log("Auth store initialized");
+    set({ isLoading: false });
+  },
 }));
 
 const HIERARCHY: PermissionLevel[] = ['none', 'view', 'edit', 'full'];
 
 function resolveLevel(role: { permissions: Record<string, PermissionLevel> }, key: string): PermissionLevel {
+  // Check wildcard first
+  if (role.permissions && role.permissions['*']) return role.permissions['*'];
+
   // Direct key match (e.g. "catalog.add_edit_wines")
-  if (role.permissions[key] !== undefined) return role.permissions[key];
+  if (role.permissions && role.permissions[key] !== undefined) return role.permissions[key];
   return 'none';
 }
 

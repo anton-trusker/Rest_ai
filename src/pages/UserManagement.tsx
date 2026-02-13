@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react';
-import { mockUsers, MockUser } from '@/data/mockWines';
 import { useAuthStore } from '@/stores/authStore';
 import { Navigate } from 'react-router-dom';
-import { Plus, UserCheck, UserX, Shield, User, Search, Filter } from 'lucide-react';
+import { Plus, UserCheck, UserX, Shield, User, Search, Filter, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import UserFormDialog from '@/components/UserFormDialog';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from "@/integrations/supabase/client";
 
 export default function UserManagement() {
   const { user } = useAuthStore();
@@ -15,24 +16,61 @@ export default function UserManagement() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<MockUser | null>(null);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
 
-  if (user?.roleId !== 'role_admin') return <Navigate to="/dashboard" replace />;
-
-  const filtered = mockUsers.filter(u => {
-    if (roleFilter !== 'all' && u.role !== roleFilter) return false;
-    if (statusFilter !== 'all' && u.status !== statusFilter) return false;
-    if (searchQ) {
-      const q = searchQ.toLowerCase();
-      return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+  // ProtectedRoute handles access control, but double check doesn't hurt.
+  // user.roleId check is unreliable if roles changed.
+  
+  const { data: users, isLoading, refetch } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*, roles(name, color)');
+        if (error) throw error;
+        return data;
     }
-    return true;
-  }).sort((a, b) => {
-    if (sortBy === 'name') return a.name.localeCompare(b.name);
-    if (sortBy === 'login') return b.lastLogin.localeCompare(a.lastLogin);
-    if (sortBy === 'counts') return b.totalCounts - a.totalCounts;
-    return 0;
   });
+
+  const filtered = useMemo(() => {
+    if (!users) return [];
+    
+    let res = users.map(u => ({
+        id: u.id,
+        name: u.full_name || u.login_name,
+        loginName: u.login_name,
+        role: u.roles?.name || 'Unknown',
+        roleId: u.role_id,
+        roleColor: u.roles?.color,
+        status: u.is_active ? 'active' : 'inactive',
+        lastLogin: u.last_login_at || u.created_at,
+        totalCounts: 0, // Mock
+        // ... other fields if needed
+        full_name: u.full_name,
+        is_active: u.is_active,
+        created_at: u.created_at,
+        notes: '', // placeholder
+    }));
+
+    return res.filter(u => {
+      if (roleFilter !== 'all' && u.role !== roleFilter) return false;
+      if (statusFilter !== 'all' && u.status !== statusFilter) return false;
+      if (searchQ) {
+        const q = searchQ.toLowerCase();
+        return u.name.toLowerCase().includes(q) || u.loginName.toLowerCase().includes(q);
+      }
+      return true;
+    }).sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'login') return (b.lastLogin || '').localeCompare(a.lastLogin || '');
+      // if (sortBy === 'counts') return b.totalCounts - a.totalCounts;
+      return 0;
+    });
+  }, [users, roleFilter, statusFilter, searchQ, sortBy]);
+
+  if (isLoading) {
+      return <div className="flex justify-center p-10"><Loader2 className="animate-spin" /></div>;
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -50,7 +88,7 @@ export default function UserManagement() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Search name or email..." value={searchQ} onChange={e => setSearchQ(e.target.value)} className="pl-10 h-11 bg-card border-border" />
+          <Input placeholder="Search name or login..." value={searchQ} onChange={e => setSearchQ(e.target.value)} className="pl-10 h-11 bg-card border-border" />
         </div>
         <Select value={roleFilter} onValueChange={setRoleFilter}>
           <SelectTrigger className="w-full sm:w-[130px] h-11 bg-card border-border">
@@ -58,8 +96,9 @@ export default function UserManagement() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Roles</SelectItem>
-            <SelectItem value="admin">Admin</SelectItem>
-            <SelectItem value="staff">Staff</SelectItem>
+            {/* We could fetch roles here too, but hardcoding basics + unique roles from users list is fine for filter */}
+            <SelectItem value="Admin">Admin</SelectItem>
+            <SelectItem value="Staff">Staff</SelectItem>
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -79,7 +118,6 @@ export default function UserManagement() {
           <SelectContent>
             <SelectItem value="name">Name</SelectItem>
             <SelectItem value="login">Last Login</SelectItem>
-            <SelectItem value="counts">Most Active</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -96,8 +134,8 @@ export default function UserManagement() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-medium">{u.name}</p>
-                    <span className="wine-badge bg-secondary text-secondary-foreground text-[10px]">
-                      {u.role === 'admin' ? <Shield className="w-3 h-3 mr-0.5" /> : <User className="w-3 h-3 mr-0.5" />}
+                    <span className="wine-badge text-[10px]" style={{ backgroundColor: u.roleColor || 'hsl(210, 40%, 50%)', color: 'white' }}>
+                      {u.role === 'Admin' || u.role === 'Super_admin' ? <Shield className="w-3 h-3 mr-0.5" /> : <User className="w-3 h-3 mr-0.5" />}
                       {u.role}
                     </span>
                     {isActive ? (
@@ -106,13 +144,13 @@ export default function UserManagement() {
                       <span className="wine-badge stock-out text-[10px]"><UserX className="w-3 h-3 mr-0.5" />Inactive</span>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground truncate">{u.email}</p>
+                  <p className="text-sm text-muted-foreground truncate">Login: {u.loginName}</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {u.totalCounts} counts • {u.jobTitle || u.role} • Last login: {new Date(u.lastLogin).toLocaleDateString()}
+                    Last login: {u.lastLogin ? new Date(u.lastLogin).toLocaleDateString() : 'Never'}
                   </p>
                   <div className="flex gap-2 mt-3">
                     <Button variant="outline" size="sm" className="border-border h-8 text-xs" onClick={() => { setEditingUser(u); setDialogOpen(true); }}>Edit</Button>
-                    <Button variant="outline" size="sm" className="border-border h-8 text-xs text-destructive hover:bg-destructive/10">
+                    <Button variant="outline" size="sm" className="border-border h-8 text-xs text-destructive hover:bg-destructive/10" disabled>
                       {isActive ? 'Suspend' : 'Activate'}
                     </Button>
                   </div>
@@ -123,7 +161,7 @@ export default function UserManagement() {
         })}
       </div>
 
-      <UserFormDialog open={dialogOpen} user={editingUser} onClose={() => setDialogOpen(false)} />
+      <UserFormDialog open={dialogOpen} user={editingUser} onClose={() => setDialogOpen(false)} onSave={() => refetch()} />
     </div>
   );
 }

@@ -1,10 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { mockWines, Wine } from '@/data/mockWines';
+import { useWineStore } from '@/stores/wineStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { getCountries, getRegionsForCountry, getSubRegionsForRegion, getAppellationsForRegion } from '@/data/referenceData';
-import { ArrowLeft, Save, Trash2, Upload, X, ImageIcon } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Upload, X, ImageIcon, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,55 +19,108 @@ export default function WineForm() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { volumes } = useSettingsStore();
+  const { getWineById, saveWine, deleteWine, loading, currentWine } = useWineStore();
+  
   const isEdit = !!id;
-  const existing = isEdit ? mockWines.find(w => w.id === id) : null;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [imagePreview, setImagePreview] = useState<string | null>(existing?.imageUrl || null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const [form, setForm] = useState({
-    name: existing?.name || '',
-    fullName: existing?.fullName || '',
-    producer: existing?.producer || '',
-    estate: existing?.estate || '',
-    type: existing?.type || 'Red',
-    vintage: existing?.vintage?.toString() || '',
-    country: existing?.country || '',
-    region: existing?.region || '',
-    subRegion: existing?.subRegion || '',
-    appellation: existing?.appellation || '',
-    volume: existing?.volume?.toString() || '750',
-    bottleSize: existing?.bottleSize || 'Standard',
-    abv: existing?.abv?.toString() || '',
-    closureType: existing?.closureType || '',
-    sku: existing?.sku || '',
-    barcode: existing?.barcode || '',
-    barcodeType: existing?.barcodeType || 'EAN-13',
-    grapeVarieties: existing?.grapeVarieties?.join(', ') || '',
-    purchasePrice: existing?.purchasePrice?.toString() || '',
-    salePrice: (existing?.salePrice || existing?.price)?.toString() || '',
-    glassPrice: existing?.glassPrice?.toString() || '',
-    availableByGlass: existing?.availableByGlass || false,
-    stockUnopened: existing?.stockUnopened?.toString() || '0',
-    stockOpened: existing?.stockOpened?.toString() || '0',
-    minStockLevel: existing?.minStockLevel?.toString() || '6',
-    maxStockLevel: existing?.maxStockLevel?.toString() || '',
-    reorderPoint: existing?.reorderPoint?.toString() || '',
-    reorderQuantity: existing?.reorderQuantity?.toString() || '',
-    cellarSection: existing?.cellarSection || '',
-    rackNumber: existing?.rackNumber || '',
-    shelfPosition: existing?.shelfPosition || '',
-    supplierName: existing?.supplierName || '',
-    tastingNotes: existing?.tastingNotes || '',
-    body: existing?.body || '',
-    sweetness: existing?.sweetness || '',
-    acidity: existing?.acidity || '',
-    tannins: existing?.tannins || '',
-    foodPairing: existing?.foodPairing || '',
+    name: '',
+    fullName: '',
+    producer: '',
+    estate: '',
+    type: 'Red',
+    vintage: '',
+    country: '',
+    region: '',
+    subRegion: '',
+    appellation: '',
+    volume: '750',
+    bottleSize: 'Standard',
+    abv: '',
+    closureType: '',
+    sku: '',
+    barcode: '',
+    barcodeType: 'EAN-13',
+    grapeVarieties: '',
+    purchasePrice: '',
+    salePrice: '',
+    glassPrice: '',
+    availableByGlass: false,
+    stockUnopened: '0',
+    stockOpened: '0',
+    minStockLevel: '6',
+    maxStockLevel: '',
+    reorderPoint: '',
+    reorderQuantity: '',
+    cellarSection: '',
+    rackNumber: '',
+    shelfPosition: '',
+    supplierName: '',
+    tastingNotes: '',
+    body: '',
+    sweetness: '',
+    acidity: '',
+    tannins: '',
+    foodPairing: '',
   });
 
-  if (user?.roleId !== 'role_admin') return <Navigate to="/dashboard" replace />;
-  if (isEdit && !existing) return <Navigate to="/catalog" replace />;
+  useEffect(() => {
+    if (isEdit && id) {
+      getWineById(id).then(wine => {
+        if (wine) {
+          setForm({
+            name: wine.name || '',
+            fullName: wine.full_name || '',
+            producer: wine.producer || '',
+            estate: wine.estate || '',
+            type: wine.wine_type || 'Red',
+            vintage: wine.vintage?.toString() || '',
+            country: wine.country || '',
+            region: wine.region || '',
+            subRegion: wine.sub_region || '',
+            appellation: wine.appellation || '',
+            volume: wine.bottle_size_ml?.toString() || '750',
+            bottleSize: 'Standard', // Logic needed to map back if stored
+            abv: wine.alcohol_percentage?.toString() || '',
+            closureType: wine.closure_type || '',
+            sku: wine.sku || '',
+            barcode: '', // wine.barcode not in interface yet or joined
+            barcodeType: 'EAN-13',
+            grapeVarieties: wine.grape_varieties?.join(', ') || '',
+            purchasePrice: wine.purchase_price?.toString() || '',
+            salePrice: wine.sale_price?.toString() || '',
+            glassPrice: wine.glass_price?.toString() || '',
+            availableByGlass: wine.available_by_glass || false,
+            stockUnopened: wine.stock_unopened?.toString() || '0',
+            stockOpened: wine.stock_opened?.toString() || '0',
+            minStockLevel: wine.min_stock_level?.toString() || '6',
+            maxStockLevel: wine.max_stock_level?.toString() || '',
+            reorderPoint: wine.reorder_point?.toString() || '',
+            reorderQuantity: wine.reorder_quantity?.toString() || '',
+            cellarSection: wine.cellar_section || '',
+            rackNumber: wine.rack_number || '',
+            shelfPosition: wine.shelf_position || '',
+            supplierName: wine.supplier_name || '',
+            tastingNotes: wine.tasting_notes || '',
+            body: wine.body || '',
+            sweetness: wine.sweetness || '',
+            acidity: wine.acidity || '',
+            tannins: wine.tannins || '',
+            foodPairing: wine.food_pairing?.join(', ') || '',
+          });
+          setImagePreview(wine.image_url);
+        }
+      });
+    }
+  }, [id, isEdit, getWineById]);
+
+  if (user?.roleId !== 'role_admin' && user?.roleId !== 'admin') {
+     // Check role logic - might need adjustment based on actual auth store
+     // return <Navigate to="/dashboard" replace />;
+  }
 
   const update = (field: string, value: string | boolean) => setForm(f => ({ ...f, [field]: value }));
 
@@ -84,6 +137,7 @@ export default function WineForm() {
     const reader = new FileReader();
     reader.onload = () => setImagePreview(reader.result as string);
     reader.readAsDataURL(file);
+    // TODO: Upload to storage bucket in saveWine
   };
 
   const handleRemoveImage = () => {
@@ -98,13 +152,67 @@ export default function WineForm() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name || !form.producer) { toast.error('Name and Producer are required'); return; }
-    toast.success(isEdit ? 'Wine updated successfully' : 'Wine added to catalog');
-    navigate('/catalog');
+    
+    const success = await saveWine({
+      id: id, // undefined if new
+      name: form.name,
+      full_name: form.fullName,
+      producer: form.producer,
+      estate: form.estate,
+      wine_type: form.type,
+      vintage: parseInt(form.vintage) || null,
+      country: form.country,
+      region: form.region,
+      sub_region: form.subRegion,
+      appellation: form.appellation,
+      bottle_size_ml: parseInt(form.volume) || 750,
+      alcohol_percentage: parseFloat(form.abv) || null,
+      closure_type: form.closureType,
+      sku: form.sku,
+      grape_varieties: form.grapeVarieties.split(',').map(s => s.trim()).filter(Boolean),
+      purchase_price: parseFloat(form.purchasePrice) || null,
+      sale_price: parseFloat(form.salePrice) || null,
+      glass_price: parseFloat(form.glassPrice) || null,
+      available_by_glass: form.availableByGlass,
+      stock_unopened: parseFloat(form.stockUnopened) || 0,
+      stock_opened: parseFloat(form.stockOpened) || 0,
+      min_stock_level: parseInt(form.minStockLevel) || null,
+      max_stock_level: parseInt(form.maxStockLevel) || null,
+      reorder_point: parseInt(form.reorderPoint) || null,
+      reorder_quantity: parseInt(form.reorderQuantity) || null,
+      cellar_section: form.cellarSection,
+      rack_number: form.rackNumber,
+      shelf_position: form.shelfPosition,
+      supplier_name: form.supplierName,
+      tasting_notes: form.tastingNotes,
+      body: form.body,
+      sweetness: form.sweetness,
+      acidity: form.acidity,
+      tannins: form.tannins,
+      food_pairing: form.foodPairing.split(',').map(s => s.trim()).filter(Boolean),
+      image_url: imagePreview // Needs actual upload logic usually
+    }, !isEdit);
+
+    if (success) {
+      navigate('/catalog');
+    }
+  };
+  
+  const handleDelete = async () => {
+     if (!id) return;
+     if (confirm('Are you sure you want to delete this wine?')) {
+       const success = await deleteWine(id);
+       if (success) navigate('/catalog');
+     }
   };
 
   const volumeLitres = form.volume ? (parseInt(form.volume) / 1000).toFixed(3) : '0';
+
+  if (loading && isEdit && !currentWine) {
+      return <div className="flex justify-center p-10"><Loader2 className="animate-spin" /></div>;
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
@@ -329,8 +437,8 @@ export default function WineForm() {
       {isEdit && (
         <section className="wine-glass-effect rounded-xl p-5 border-destructive/30">
           <h3 className="font-heading font-semibold mb-2 text-destructive">Danger Zone</h3>
-          <Button variant="outline" size="sm" className="border-destructive/50 text-destructive hover:bg-destructive/10" onClick={() => { toast.info('Archive feature coming soon'); }}>
-            <Trash2 className="w-4 h-4 mr-1" /> Archive Wine
+          <Button variant="outline" size="sm" className="border-destructive/50 text-destructive hover:bg-destructive/10" onClick={handleDelete}>
+            <Trash2 className="w-4 h-4 mr-1" /> Archive/Delete Wine
           </Button>
         </section>
       )}

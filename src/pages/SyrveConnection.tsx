@@ -37,7 +37,10 @@ export default function SyrveConnection() {
         if (success) {
             toast.success('Connection successful! Please select a store.');
         } else {
-            toast.error('Connection failed. Check credentials.');
+            // Read the error from the store state directly if possible, or we need to wait for the state update.
+            // Since testConnection is async and sets state, we can use useSyrveStore.getState().errorMessage
+            const error = useSyrveStore.getState().errorMessage;
+            toast.error(`Connection failed: ${error || 'Check credentials'}`);
         }
     };
 
@@ -56,7 +59,12 @@ export default function SyrveConnection() {
             });
             toast.success('Configuration saved successfully');
         } catch (e: any) {
-            toast.error('Failed to save: ' + e.message);
+            // Check for Row Level Security (RLS) error which typically returns 401
+            if (e.message?.includes('401') || e.code === '401' || e.message?.includes('row-level security policy')) {
+                toast.error('Permission denied: You do not have access to save settings (RLS Policy).');
+            } else {
+                toast.error('Failed to save: ' + e.message);
+            }
         }
     };
 

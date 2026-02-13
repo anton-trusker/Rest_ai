@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Scan, Camera, Search, StopCircle, Zap, AlertCircle } from 'lucide-react';
+import { Scan, Camera, Search, StopCircle, Zap, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Wine, mockWines } from '@/data/mockWines';
+import { useWineStore, WineProduct } from '@/stores/wineStore';
 import { toast } from 'sonner';
 import ManualSearchSheet from './ManualSearchSheet';
 import QuantityPopup from './QuantityPopup';
@@ -13,22 +13,27 @@ type ScanMode = 'barcode' | 'image';
 interface CameraScannerProps {
   sessionId: string;
   counted: number;
-  onCount: () => void;
+  onCount: (wineId: string, unopened: number, opened: number, method: string) => Promise<void>;
   onEndSession: () => void;
 }
 
 const SCANNER_ELEMENT_ID = 'barcode-scanner-region';
 
 export default function CameraScanner({ sessionId, counted, onCount, onEndSession }: CameraScannerProps) {
+  const { wines, fetchWines } = useWineStore();
   const [mode, setMode] = useState<ScanMode>('barcode');
   const [showManualSearch, setShowManualSearch] = useState(false);
-  const [selectedWine, setSelectedWine] = useState<Wine | null>(null);
+  const [selectedWine, setSelectedWine] = useState<WineProduct | null>(null);
   const [showQuantity, setShowQuantity] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
-  const [progressWine, setProgressWine] = useState<Wine | null>(null);
+  const [progressWine, setProgressWine] = useState<WineProduct | null>(null);
   const [isCompactQuantity, setIsCompactQuantity] = useState(false);
   const imageVideoRef = useRef<HTMLVideoElement>(null);
   const imageStreamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    fetchWines();
+  }, [fetchWines]);
 
   // Start/stop camera for image mode
   useEffect(() => {
@@ -59,8 +64,11 @@ export default function CameraScanner({ sessionId, counted, onCount, onEndSessio
 
   // Real barcode detection handler
   const handleBarcodeDetected = useCallback((code: string) => {
-    // Try to match barcode against mock wines
-    const matchedWine = mockWines.find(w => w.barcode === code);
+    // Try to match barcode against wines
+    // Note: wines in store might not have barcode loaded if it's in a separate table or column not in view
+    // Assuming barcode is in the view or loaded data for now
+    const matchedWine = wines.find(w => w.sku === code || (w as any).barcode === code);
+    
     if (matchedWine) {
       toast.success(`Barcode matched: ${matchedWine.name}`, { duration: 1500 });
       setSelectedWine(matchedWine);
@@ -71,15 +79,19 @@ export default function CameraScanner({ sessionId, counted, onCount, onEndSessio
     }
     setIsCompactQuantity(true);
     setShowQuantity(true);
-  }, []);
+  }, [wines]);
 
   const isBarcodeActive = mode === 'barcode' && !showQuantity && !showManualSearch && !showProgress;
   const { isScanning, error: scannerError } = useBarcodeScanner(SCANNER_ELEMENT_ID, handleBarcodeDetected, isBarcodeActive);
 
   // Simulate barcode for demo (fallback)
   const handleSimulateScan = () => {
-    const randomWine = mockWines[Math.floor(Math.random() * mockWines.length)];
-    toast.success(`Barcode detected: ${randomWine.barcode || randomWine.sku}`, { duration: 1500 });
+    if (wines.length === 0) {
+      toast.error("No wines loaded");
+      return;
+    }
+    const randomWine = wines[Math.floor(Math.random() * wines.length)];
+    toast.success(`Barcode detected: ${randomWine.sku}`, { duration: 1500 });
     setSelectedWine(randomWine);
     setIsCompactQuantity(true);
     setShowQuantity(true);
@@ -87,12 +99,13 @@ export default function CameraScanner({ sessionId, counted, onCount, onEndSessio
 
   // Simulate image capture
   const handleImageCapture = () => {
-    const randomWine = mockWines[Math.floor(Math.random() * mockWines.length)];
+    if (wines.length === 0) return;
+    const randomWine = wines[Math.floor(Math.random() * wines.length)];
     setProgressWine(randomWine);
     setShowProgress(true);
   };
 
-  const handleProgressComplete = useCallback((wine: Wine | null, confidence: number) => {
+  const handleProgressComplete = useCallback((wine: WineProduct | null, confidence: number) => {
     setShowProgress(false);
     if (wine) {
       setSelectedWine(wine);
@@ -106,17 +119,19 @@ export default function CameraScanner({ sessionId, counted, onCount, onEndSessio
     }
   }, []);
 
-  const handleManualSelect = (wine: Wine) => {
+  const handleManualSelect = (wine: WineProduct) => {
     setShowManualSearch(false);
     setSelectedWine(wine);
     setIsCompactQuantity(false);
     setShowQuantity(true);
   };
 
-  const handleConfirmCount = (unopened: number, opened: number, notes: string) => {
+  const handleConfirmCount = async (unopened: number, opened: number, notes: string) => {
     if (!selectedWine) return;
+    
+    await onCount(selectedWine.wine_id || selectedWine.id, unopened, opened, mode); // Fallback to product ID if wine_id null
+    
     toast.success(`Counted ${unopened + opened} × ${selectedWine.name}`, { duration: 2000 });
-    onCount();
     setShowQuantity(false);
     setSelectedWine(null);
   };
@@ -267,11 +282,11 @@ export default function CameraScanner({ sessionId, counted, onCount, onEndSessio
       </div>
 
       {/* Overlays */}
-      <ManualSearchSheet open={showManualSearch} onClose={() => setShowManualSearch(false)} onSelect={handleManualSelect} />
+      <ManualSearchSheet open={showManualSearch} onClose={() => setShowManualSearch(false)} onSelect={handleManualSelect as any} />
       
       {showQuantity && selectedWine && (
         <QuantityPopup
-          wine={selectedWine}
+          wine={selectedWine as any}
           compact={isCompactQuantity}
           onConfirm={handleConfirmCount}
           onCancel={handleCancelQuantity}
@@ -280,8 +295,8 @@ export default function CameraScanner({ sessionId, counted, onCount, onEndSessio
 
       <ScanProgressDialog
         open={showProgress}
-        onComplete={handleProgressComplete}
-        simulatedWine={progressWine}
+        onComplete={handleProgressComplete as any}
+        simulatedWine={progressWine as any}
       />
     </div>
   );

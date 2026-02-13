@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import WineCatalog from "./pages/WineCatalog";
+import ProductCatalog from "./pages/ProductCatalog";
 import WineDetail from "./pages/WineDetail";
 import WineForm from "./pages/WineForm";
 import ImportInventory from "./pages/ImportInventory";
@@ -19,10 +19,14 @@ import UserManagement from "./pages/UserManagement";
 import Reports from "./pages/Reports";
 import AppSettings from "./pages/AppSettings";
 import GeneralSettings from "./pages/GeneralSettings";
+import SyrveConnection from "./pages/SyrveConnection";
 import RolesPermissions from "./pages/RolesPermissions";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import { useThemeStore } from "./stores/themeStore";
+import { useSettingsStore } from "./stores/settingsStore";
+import { useAuthStore } from "./stores/authStore";
+import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -36,40 +40,67 @@ function ThemeApplicator({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeApplicator>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/catalog" element={<WineCatalog />} />
-              <Route path="/catalog/new" element={<WineForm />} />
-              <Route path="/catalog/:id" element={<WineDetail />} />
-              <Route path="/catalog/:id/edit" element={<WineForm />} />
-              <Route path="/catalog/import" element={<ImportInventory />} />
-              <Route path="/count" element={<InventoryCount />} />
-              <Route path="/stock" element={<CurrentStock />} />
-              <Route path="/history" element={<InventoryHistory />} />
-              <Route path="/sessions" element={<SessionReview />} />
-              <Route path="/users" element={<UserManagement />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/settings" element={<AppSettings />} />
-              <Route path="/settings/general" element={<GeneralSettings />} />
-              <Route path="/settings/roles" element={<RolesPermissions />} />
-              <Route path="/profile" element={<Profile />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </ThemeApplicator>
-  </QueryClientProvider>
-);
+const App = () => {
+  const { initialize } = useAuthStore();
+  const { fetchRoles } = useSettingsStore();
+
+  useEffect(() => {
+    initialize();
+    fetchRoles();
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeApplicator>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/" element={<Navigate to="/login" replace />} />
+
+              {/* Protected Routes */}
+              <Route element={
+                <ProtectedRoute>
+                  <AppLayout />
+                </ProtectedRoute>
+              }>
+                <Route path="/dashboard" element={<Dashboard />} />
+
+                {/* Catalog Routes */}
+                <Route path="/catalog" element={<ProductCatalog />} />
+                <Route path="/catalog/new" element={<ProtectedRoute allowedRoles={['admin']}><WineForm /></ProtectedRoute>} />
+                <Route path="/catalog/:id" element={<WineDetail />} />
+                <Route path="/catalog/:id/edit" element={<ProtectedRoute allowedRoles={['admin']}><WineForm /></ProtectedRoute>} />
+                <Route path="/catalog/import" element={<ProtectedRoute allowedRoles={['admin']}><ImportInventory /></ProtectedRoute>} />
+
+                {/* Inventory Routes */}
+                <Route path="/count" element={<InventoryCount />} />
+                <Route path="/stock" element={<ProtectedRoute allowedRoles={['admin']}><CurrentStock /></ProtectedRoute>} />
+                <Route path="/history" element={<InventoryHistory />} />
+                <Route path="/sessions" element={<SessionReview />} />
+
+                {/* Admin Routes */}
+                <Route path="/users" element={<ProtectedRoute allowedRoles={['admin']}><UserManagement /></ProtectedRoute>} />
+                <Route path="/reports" element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
+
+                {/* Settings Routes */}
+                <Route path="/settings" element={<ProtectedRoute allowedRoles={['admin']}><AppSettings /></ProtectedRoute>} />
+                <Route path="/settings/syrve" element={<ProtectedRoute allowedRoles={['admin']}><SyrveConnection /></ProtectedRoute>} />
+                <Route path="/settings/general" element={<ProtectedRoute allowedRoles={['admin']}><GeneralSettings /></ProtectedRoute>} />
+                <Route path="/settings/roles" element={<ProtectedRoute allowedRoles={['admin']}><RolesPermissions /></ProtectedRoute>} />
+
+                <Route path="/profile" element={<Profile />} />
+              </Route>
+
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </ThemeApplicator>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

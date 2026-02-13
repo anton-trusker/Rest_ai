@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { InventoryItem } from '@/data/mockWines';
+import { InventoryItem } from '@/stores/sessionStore';
 import { Wine as WineIcon, Clock, CheckCircle2, BarChart3, ArrowRight, Scan, Camera, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -17,15 +17,15 @@ export default function SessionSummary({ sessionId, sessionName, items, duration
   const navigate = useNavigate();
 
   const totalWines = items.length;
-  const totalBottles = items.reduce((s, i) => s + i.countedUnopened + i.countedOpened, 0);
-  const totalUnopened = items.reduce((s, i) => s + i.countedUnopened, 0);
-  const totalOpened = items.reduce((s, i) => s + i.countedOpened, 0);
-  const varianceCount = items.filter(i => i.hasVariance).length;
+  const totalBottles = items.reduce((s, i) => s + (i.counted_quantity_unopened || 0) + (i.counted_quantity_opened || 0), 0);
+  const totalUnopened = items.reduce((s, i) => s + (i.counted_quantity_unopened || 0), 0);
+  const totalOpened = items.reduce((s, i) => s + (i.counted_quantity_opened || 0), 0);
+  const varianceCount = items.filter(i => (i.variance_total || 0) !== 0).length;
 
   const methodBreakdown = {
-    barcode: items.filter(i => i.countingMethod === 'barcode').length,
-    image_ai: items.filter(i => i.countingMethod === 'image_ai').length,
-    manual: items.filter(i => i.countingMethod === 'manual').length,
+    barcode: items.filter(i => i.counting_method === 'barcode').length,
+    image_ai: items.filter(i => i.counting_method === 'image_ai').length,
+    manual: items.filter(i => i.counting_method === 'manual').length,
   };
 
   const formatDuration = (seconds: number) => {
@@ -42,7 +42,7 @@ export default function SessionSummary({ sessionId, sessionName, items, duration
         <div className="wine-gradient p-6 text-center">
           <CheckCircle2 className="w-12 h-12 mx-auto mb-2 text-primary-foreground" />
           <h2 className="font-heading text-xl font-bold text-primary-foreground">Session Complete</h2>
-          <p className="text-primary-foreground/70 text-sm mt-1">{sessionName} · #{sessionId}</p>
+          <p className="text-primary-foreground/70 text-sm mt-1">{sessionName} · #{sessionId.slice(0, 8)}</p>
         </div>
 
         {/* Stats */}
